@@ -1,8 +1,8 @@
-days,Day_1,Day_2,Day_3
-ribs,0,1277,0
-keels,1050,1704,1342
-legs,1150,1862,1167
-thigh,0,1789,0
-wings,1050,1391,1050
-breasts,960,1562,960
-drumsticks,1050,1856,1458
+days,Day_1,Day_2,Day_3,Day_4
+ribs,0,0,0,0
+keels,0,0,0,0
+legs,0,0,0,0
+thigh,0,0,0,0
+wings,0,0,200,100
+breasts,0,86,86,86
+drumsticks,0,0,0,0
