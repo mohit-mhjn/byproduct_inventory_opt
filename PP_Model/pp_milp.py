@@ -530,7 +530,7 @@ xf_df = pd.pivot_table(xf_df, values='Order_Quantity', index=['I_1', 'I_2'], col
 # print(xf_df)
 xf_df.to_csv('Process_Fresh_OverHorizon.csv')
 
-HA = pd.Series(HA_sol)
+HA = pd.DataFrame({'Number':HA_sol})
 HA.to_csv("Bird_Count.csv")
 print(HA)
 
