@@ -20,46 +20,67 @@ model = ConcreteModel()
 if len(sys.argv) > 1:
     filename = sys.argv[-1]
 else:
-    filename = '/home/rishi/GIT/imbalanced_parts/PP_Model/Model_Input_old.xlsm'
+    filename = '/home/rishi/GIT/imbalanced_parts/PP_Model/Model_Input_Final.xlsm'
 
 demand_fresh = pd.read_excel(filename, sheetname="Demand_Fresh")
 demand_fresh = demand_fresh.dropna(axis='columns', how='all')
-demand_fresh_df = pd.DataFrame(0, index=range(1, len(demand_fresh)+1), columns=range(1, len(demand_fresh.loc[0])))
-for i in range(0, len(demand_fresh)):
-    for j in range(1, len(demand_fresh.loc[0])):
-        demand_fresh_df.loc[i+1][j]=demand_fresh.loc[i][j]
+# demand_fresh_df = pd.DataFrame(0, index=range(1, len(demand_fresh)+1), columns=range(1, len(demand_fresh.loc[0])))
+# for i in range(0, len(demand_fresh)):
+#     for j in range(1, len(demand_fresh.loc[0])):
+#         demand_fresh_df.loc[i+1][j]=demand_fresh.loc[i][j]
 
 
 def df(model, i, j):
-    return demand_fresh_df[int(j)][int(i)]
+    try:
+        return np.nan_to_num(demand_fresh[demand_fresh['item code']==i][j].iloc[0])
+    except IndexError:
+        return 0
 
 
 demand_frozen = pd.read_excel(filename, sheetname="Demand_Frozen")
 demand_frozen = demand_frozen.dropna(axis='columns', how = 'all')
-demand_frozen_dc = pd.DataFrame(0, index=range(1, len(demand_frozen)+1), columns=range(1, len(demand_frozen.loc[0])))
-for i in range(0, len(demand_frozen)):
-    for j in range(1, len(demand_frozen.loc[0])):
-        demand_frozen_dc.loc[i+1][j] = demand_frozen.loc[i][j]
+# demand_frozen_dc = pd.DataFrame(0, index=range(1, len(demand_frozen)+1), columns=range(1, len(demand_frozen.loc[0])))
+# for i in range(0, len(demand_frozen)):
+#     for j in range(1, len(demand_frozen.loc[0])):
+#         demand_frozen_dc.loc[i+1][j] = demand_frozen.loc[i][j]
 
 
 def dc(model, i, j):
-    return demand_frozen_dc[int(j)][int(i)]
+    try:
+        return np.nan_to_num(demand_frozen[demand_frozen['item code'] == i][j].iloc[0])
+    except IndexError:
+        return 0
 
+ff = pd.read_excel('Model_Input_Final.xlsm', sheetname="Fresh_Frozen_Relation")
+ff = ff.dropna(axis='columns', how='all')
+ff =ff.astype(str)
+for i in demand_frozen['item code'].astype(str).unique():
+    if i in ff['Frozen SKU'].astype(str).unique():
+        demand_frozen['item code'][demand_frozen.index[demand_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
 
+products = list(set(list(demand_fresh['item code'])+list(demand_frozen['item code'])))
 selling_price_fresh = pd.read_excel(filename, sheetname='Selling_Price_Fresh')
 selling_price_fresh = selling_price_fresh.dropna(axis='columns', how='all')
 
-
 def pf(model,i):
-    return float(selling_price_fresh.iloc[i-1][1])
+    try:
+        return np.nan_to_num(float(selling_price_fresh[selling_price_fresh['item code']==i]['Selling Price Fresh (in RM/kg)'].iloc[0]))
+    except IndexError:
+        return 10
 
 
 selling_price_frozen = pd.read_excel(filename, sheetname='Selling_Price_Frozen')
 selling_price_frozen = selling_price_frozen.dropna(axis='columns', how='all')
+for i in selling_price_frozen['item code'].astype(str).unique():
+    if i in ff['Frozen SKU'].astype(str).unique():
+        selling_price_frozen['item code'][selling_price_frozen.index[selling_price_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
 
 
 def pc(model, i):
-    return float(selling_price_frozen.iloc[i-1][1])
+    try:
+        return np.nan_to_num(float(selling_price_frozen[selling_price_frozen['item code']==i]['Selling Price Frozen (in RM/kg)'].iloc[0]))
+    except IndexError:
+        return 10
 
 
 holding_price_fresh = pd.read_excel(filename, sheetname='Holding_Cost_Fresh')
@@ -67,15 +88,25 @@ holding_price_fresh = holding_price_fresh.dropna(axis='columns', how='all')
 
 
 def hf(model, i):
-    return float(selling_price_fresh.iloc[i-1][1])
-
+    try:
+        return np.nan_to_num(float(
+            holding_price_fresh[holding_price_fresh['item code'] == i]['Holding_Cost_Fresh (in RM/kg)'].iloc[0]))
+    except IndexError:
+        return 10
 
 holding_price_frozen = pd.read_excel(filename, sheetname='Holding_Cost_Frozen')
 holding_price_frozen = holding_price_frozen.dropna(axis='columns', how='all')
+for i in holding_price_frozen['item code'].astype(str).unique():
+    if i in ff['Frozen SKU'].astype(str).unique():
+        holding_price_frozen['item code'][holding_price_frozen.index[holding_price_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
 
 
 def hc(model, i):
-    return float(holding_price_frozen.iloc[i-1][1])
+    try:
+        return np.nan_to_num(float(
+            holding_price_frozen[holding_price_frozen['item code'] == i]['Holding_Cost_Frozen(In RM/kg)'].iloc[0]))
+    except IndexError:
+        return 10
 
 
 penalty_fresh = pd.read_excel(filename,sheetname='Penalty_Fresh')
@@ -83,15 +114,27 @@ penalty_fresh = penalty_fresh.dropna(axis='columns', how='all')
 
 
 def sf(model, i):
-    return float(penalty_fresh.iloc[i-1][1])
+    try:
+        return np.nan_to_num(float(
+            penalty_fresh[penalty_fresh['item code'] == i]['Penalty_Cost_Fresh(in RM/kg)'].iloc[0]))
+    except IndexError:
+        return 10
 
 
 penalty_frozen = pd.read_excel(filename, sheetname='Penalty_Frozen')
 penalty_frozen = penalty_frozen.dropna(axis='columns', how='all')
 
+for i in penalty_frozen['item code'].astype(str).unique():
+    if i in ff['Frozen SKU'].astype(str).unique():
+        penalty_frozen['item code'][penalty_frozen.index[penalty_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
+
 
 def sc(model,i):
-    return float(penalty_frozen.iloc[i-1][1])
+    try:
+        return np.nan_to_num(float(
+            penalty_frozen[penalty_frozen['item code'] == i]['Penalty_Cost_Frozen(in RM/kg)'].iloc[0]))
+    except IndexError:
+        return 10
 
 
 operational_cost = pd.read_excel(filename,sheetname='Operational_Cost')
@@ -99,7 +142,7 @@ operational_cost = operational_cost.dropna(axis ='columns', how = 'all')
 
 
 def c(model,j):
-    return float(operational_cost.iloc[j-1][1])
+    return np.nan_to_num(float(operational_cost.iloc[j-1][1]))
 
 
 operational_cost_overtime = pd.read_excel(filename, sheetname='Operational_Cost_Overtime')
@@ -107,7 +150,7 @@ operational_cost_overtime = operational_cost_overtime.dropna(axis='columns', how
 
 
 def ce(model,j):
-    return float(operational_cost_overtime.iloc[j-1][1])
+    return np.nan_to_num(float(operational_cost_overtime.iloc[j-1][1]))
 
 
 available_hour_regular = pd.read_excel(filename, sheetname='Available_Hour_Regular')
@@ -115,7 +158,7 @@ available_hour_regular = available_hour_regular.dropna(axis ='columns', how = 'a
 
 
 def Ta(model,t):
-    return float(available_hour_regular.iloc[t-1][1])
+    return np.nan_to_num(float(available_hour_regular[available_hour_regular['Day']==t]['Available Hours'].iloc[0]))
 
 
 available_hour_overtime = pd.read_excel(filename,sheetname='Available_Hour_Overtime')
@@ -123,7 +166,7 @@ available_hour_overtime = available_hour_overtime.dropna(axis ='columns', how = 
 
 
 def Te(model,t):
-    return float(available_hour_overtime.iloc[t-1][1])
+    return np.nan_to_num(float(available_hour_overtime[available_hour_overtime['Day']==t]['Available Hours'].iloc[0]))
 
 
 common_data = pd.read_excel(filename,sheetname='Common_Data')
@@ -147,11 +190,12 @@ def b(model):
 
 
 def F(model):
-    return int(common_data["Value"][5])
+    print(float(common_data["Value"][6]))
+    return float(common_data["Value"][6])
 
 
 def tau(model):
-    return int(common_data["Value"][6])
+    return int(common_data["Value"][7])
 
 
 def delta(model):
@@ -161,22 +205,26 @@ def delta(model):
 
 
 shelf_lif = pd.read_excel(filename, sheetname='Shelf_Life')
-print(max(shelf_lif['Shelf_Life']))
-shelf_life = max(shelf_lif['Shelf_Life'])
+shelf_life = int(max(shelf_lif['Shelf_Life']))
 
 
 def L(model,i):
-    L = list(j for j in range(shelf_lif.iloc[i-1][1]))
-    L = L[:]
+    try:
+        L = list(j for j in range(int(shelf_lif[shelf_lif['item code']==i]['Shelf_Life'].iloc[0])))
+    except IndexError:
+        L = [0, 1]
+    # L = L[:]
     return L
 # Ld = list(i for i in range(shelf_life + 1))
 # L = Ld[1:]
 
 
 def Ld(model,i):
-    Ld = list(j for j in range(shelf_lif.iloc[i-1][1]))
-    Ld = Ld[:]
-    print(Ld)
+    try:
+        Ld = list(j for j in range(int(shelf_lif[shelf_lif['item code']==i]['Shelf_Life'].iloc[0])))
+        Ld = Ld[:]
+    except IndexError:
+        Ld = [0, 1]
     return Ld
 
 
@@ -190,22 +238,29 @@ def t(model,j):
 
 y = pd.read_excel(filename, sheetname='Yield',)
 y = y.dropna(axis ='columns', how='all')
-products = list(i for i in range(1, len(y['Product'].unique())+1))
-products = np.repeat(products, len(y['Cutting Pattern'].unique()))
-cut_pattern = list(i for i in range(1, len(y['Cutting Pattern'].unique())+1))
-cut_pattern = cut_pattern*len(y['Product'].unique())
-b_t = list(i for i in range(1, len(y.columns)+1))
-y.columns = b_t
+bird_type = y.columns[2:]
+cut_pattern = list(set(y['Cutting Pattern']))
+# products = list(i for i in range(1, len(y['item code'].unique())+1))
+# products = np.repeat(products, len(y['Cutting Pattern'].unique()))
+# cut_pattern = list(i for i in range(1, len(y['Cutting Pattern'].unique())+1))
+# cut_pattern = cut_pattern*len(y['item code'].unique())
 
-y = y.set_index([products, cut_pattern])
-del y[1]
-del y[2]
-y.columns = range(1, len(y.columns)+1)
-bird_type = list(i for i in range(1, len(y.columns)+1))
+# b_t = list(i for i in range(1, len(y.columns)+1))
+# y.columns = b_t
+
+# y = y.set_index([products, cut_pattern])
+# del y[1]
+# del y[2]
+# y.columns = range(1, len(y.columns)+1)
+
+# bird_type = y.columns
 
 
 def yd(model, i, j, r):
-    return float(y[r][i][j])
+    try:
+        return np.nan_to_num(float(y[(y['item code']==i) & (y['Cutting Pattern']==j)][r].iloc[0]))
+    except IndexError:
+        return 0
 
 
 bird_type_ratio = pd.read_excel(filename, sheetname='Bird_Type_Ratio')
@@ -213,22 +268,21 @@ bird_type_ratio = bird_type_ratio.dropna(axis='columns', how='all')
 
 
 def alpha(model, r):
-    return float(bird_type_ratio.iloc[r-1][1])
+    return np.nan_to_num(float(bird_type_ratio[bird_type_ratio['Bird Type']==r]['Ratio'].iloc[0]))
 
 
-days = list(i for i in  range(1,len(demand_frozen.loc[0])))
+days = list(demand_fresh.columns[1:])
 availability = pd.read_excel(filename ,sheetname='Availability')
 availability = availability.dropna(axis='columns', how='all')
 
 
 def H(model,r):
-    return int(availability.iloc[r-1][1])
+    return availability[availability['Days']==r]['Availability'].iloc[0]
 
 
 cutting_pattern = pd.read_excel(filename,sheetname='Cutting_Pattern')
 cutting_pattern = cutting_pattern.dropna(axis='columns', how='all')
 cutting_pattern=cutting_pattern.fillna(0)
-
 cp=[]
 for i in cutting_pattern.itertuples():
     cp.append((list(i[2:])))
@@ -246,7 +300,7 @@ def Jk(model, k):
 
 model.T = Set(initialize=days, ordered=True)     # planning horizon
 model.J = Set(initialize=list(set(cut_pattern)), ordered = True)     # cutting patterns
-model.P = Set(initialize=list(set(products)), ordered = True)     # products
+model.P = Set(initialize=products, ordered = True)     # products
 model.L = Set(model.P, initialize=L, ordered=True)     # shell life for fresh products
 model.H = Param(model.T, initialize = H)         # min no of avaiable carcasses of type r in all planning horizon
 model.K = Set(initialize = sections)             # no of sections
@@ -264,6 +318,7 @@ model.hc = Param(model.P, initialize = hc)    # HC Frozen
 model.sf = Param(model.P, initialize = sf)     # penality for unstatisfed fresh
 model.sc = Param(model.P, initialize = sc)     # penality for unstatisfed frozen
 model.F = Param(initialize = F)    # Freezing tunnel capacity at t
+model.F.pprint()
 model.df = Param(model.P, model.T, initialize = df) # Demand of fresh products
 model.dc = Param(model.P, model.T, initialize = dc ) # Demand of frozen products
 model.tau = Param(initialize = tau)         # Freezing Process duration
@@ -272,13 +327,13 @@ model.Wc = Param(initialize = Wc)     # warehouse capacity
 model.t = Param(model.J, initialize = t)    #cutting operation for pattern j
 model.Ta = Param(model.T, initialize = Ta)    #avaiable work hours in each time period
 model.Te = Param(model.T, initialize = Te)       # avaiable overtime hours
-model.delta = Param(initialize = delta)         # auxilary pattern for better control the available carcass
+# model.delta = Param(initialize = delta)         # auxilary pattern for better control the available carcass
 model.Ld = Set(model.P, initialize = Ld, ordered = True)
 # Extra Parameters to handle computed indices
+model.dc.pprint()
 td = list(range((days[0]-shelf_life), 1)) + days + list(range(days[-1]+1, days[-1]+shelf_life+1))
-model.L.pprint()
+# print(td)
 model.Td = Set(initialize=td, ordered=True)
-model.Ld.pprint()
 model.x = Var(model.P, model.T, domain=NonNegativeReals)   # total quantity of product i to be processed in period t
 model.xf = Var(model.P, model.Td, model.Td, domain=NonNegativeReals)        # quantity of fresh product i to process in period t to be sold at t'
 model.z = Var(model.J, model.R, model.T, domain=NonNegativeIntegers)   # no of times to use pattern j on carcass r in period t in RT
@@ -290,7 +345,6 @@ model.Ic = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of 
 model.uf = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of fresh product i in t
 model.uc = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of frozen product i in t
 model.HA = Var(model.T, domain=NonNegativeIntegers)         # No of carcasses to be processed in period t
-
 
 def objective_function(model):
     return sum(sum(model.pf[i]*model.vf[i, t] + model.pc[i]*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.b*model.xc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.hf[i]*model.xf[i, t, t+l] for t in model.T) for l in model.L[i]) for i in model.P) - sum(sum(model.sf[i]*model.uf[i, t] - model.sc[i]*model.uc[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.c[j]*model.z[j, r, t] + model.ce[j]*model.ze[j, r, t] for j in model.J) for r in model.R) for t in model.T)
@@ -304,7 +358,7 @@ def carcass_availability(model,r, t,k):
 model.A2Constraint = Constraint(model.R, model.T, model.K,  rule = carcass_availability)
 
 def carcass_limit(model, t):
-        return model.delta*model.H[t] <= model.HA[t] <= model.H[t]
+        return model.HA[t] <= model.H[t]
 model.A3Constraint = Constraint( model.T,rule = carcass_limit)
 
 def cutting_pattern(model,i,t):
@@ -370,23 +424,27 @@ model.initial_inv_Constraint = Constraint(model.P, rule = initial_inventory)
 
 initial_inv_frozen = pd.read_excel(filename,sheetname='Initial_Inventory')
 def initial_inventory_frozen_product(model,i):
-     return model.xc[i,0] ==int(initial_inv_frozen.iloc[i-1][1])
+    try:
+        return model.xc[i,0] ==np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==1]['Initial Inventory'].iloc[0]))
+    except IndexError:
+        return Constraint.Skip
 model.initial_inv_frozen_Constraint = Constraint(model.P, rule = initial_inventory_frozen_product)
 
 # model.pprint()
-opt = SolverFactory('cbc')
-opt.options["sec"] = 10
+opt = SolverFactory('cplex')
+# opt.options["keepfiles"] = True
+# opt.options["sec"] = 1000
 opt.options["log"] = 1
 results = opt.solve(model, tee=True)
 # model.load(results)
 
 model.solutions.store_to(results)
 results.write(filename='results.json',format = 'json')
-
+# print(results)
 df = pd.read_excel(filename, sheetname="Demand_Fresh")
 df = df.dropna(axis='columns', how='all')
 column_len = len(df.loc[0])
-products = df['days']
+products = products
 with open('results.json') as data_file:
     data = json.load(data_file)
     solution = data['Solution'][1]['Variable']
@@ -402,11 +460,11 @@ with open('results.json') as data_file:
     z_sol = {k[1:]: v['Value'] for k, v in solution.items() if 'z[' in k}
     ze_sol = {k[1:]: v['Value'] for k, v in solution.items() if 'ze[' in k}
 
-days = []
-for i in range(1, column_len):
-    days.append('Day_'+str(i))
+# days = []
+# for i in range(1, column_len):
+#     days.append('Day_'+str(i))
 
-d_x = pd.DataFrame(0, index=range(1, len(df)+1), columns=range(1, column_len))
+d_x = pd.DataFrame(0, index=products, columns=days)
 for i, j in list(itertools.product(model.P, model.T)):
     d_x[j][i] = model.x[i, j].value
 
@@ -414,16 +472,16 @@ d_x.columns = days
 d_x.index = products
 d_x.to_csv('Production.csv')
 
-d_xc = pd.DataFrame(0, index=range(1, len(df)+1), columns=range(0, column_len))
+d_xc = pd.DataFrame(0, index=products, columns=days)
 for i, j in list(itertools.product(model.P, model.T)):
     d_xc[j][i] = model.xc[i, j].value
 
-days_with_initial = ['Day_0']+days
+days_with_initial = days
 d_xc.columns = days_with_initial
 d_xc.index = products
 d_xc.to_csv('Frozen_Product_Production.csv')
 
-d_vf = pd.DataFrame(0, index=range(1, len(df)+1), columns=range(1, column_len))
+d_vf = pd.DataFrame(0, index=products, columns=days)
 for i, j in list(itertools.product(model.P, model.T)):
     d_vf[j][i] = model.vf[i, j].value
 
@@ -432,7 +490,7 @@ d_vf.index = products
 print('sold fresh', d_vf)
 d_vf.to_csv('Fresh_Product_Sold.csv')
 
-d_vc = pd.DataFrame(0, index=range(1, len(df)+1), columns=range(1, column_len))
+d_vc = pd.DataFrame(0, index=products, columns=days)
 for i, j in list(itertools.product(model.P, model.T)):
     d_vc[j][i] = model.vc[i, j].value
 
@@ -440,7 +498,7 @@ d_vc.columns = days
 d_vc.index = products
 d_vc.to_csv('Frozen_Product_Sold.csv')
 
-d_Ic = pd.DataFrame(0, index=range(1, len(df)+1), columns=range(0, column_len))
+d_Ic = pd.DataFrame(0, index=products, columns=days)
 for i, j in list(itertools.product(model.P, model.T)):
     d_Ic[j][i] = model.Ic[i, j].value
 
@@ -448,7 +506,7 @@ d_Ic.columns = days_with_initial
 d_Ic.index = products
 d_Ic.to_csv('Frozen_Product_Inventory.csv')
 
-d_uf = pd.DataFrame(0, index=range(1, len(df)+1), columns=range(1, column_len))
+d_uf = pd.DataFrame(0, index=products, columns=days)
 for i, j in list(itertools.product(model.P, model.T)):
     d_uf[j][i] = model.uf[i, j].value
 
@@ -457,7 +515,7 @@ d_uf.index = products
 print('Unsatisfied Fresh', d_uf)
 d_uf.to_csv('Unsatisfied_Fresh.csv')
 
-d_uc = pd.DataFrame(0, index=range(1, len(df)+1), columns=range(1, column_len))
+d_uc = pd.DataFrame(0, index=products, columns=days)
 for i, j in list(itertools.product(model.P, model.T)):
     d_uc[j][i] = model.uc[i, j].value
 
@@ -468,13 +526,14 @@ d_uc.to_csv('Unsatisfied_Frozen.csv')
 
 df_two = pd.read_excel(filename, sheetname="Yield")
 df_two = df_two.dropna(axis='columns', how='all')
-products_two = df_two['Product']
-cut_pattern = df_two['Cutting Pattern']
-bird_type = df_two.columns
+products_two = products
+cut_pattern = cut_pattern
+bird_type = bird_type
 with open('results.json') as data_file:
     data = json.load(data_file)
     solution = data['Solution'][1]['Variable']
     z_sol = {k[1:]: v['Value'] for k, v in solution.items() if 'z[' in k}
+
 z_df = pd.Series(z_sol, name='Order_Quantity')
 z_df = pd.DataFrame(z_df)
 z_df = z_df.reset_index()
@@ -491,7 +550,7 @@ z_df['I_2'] = i_2
 z_df['I_3'] = i_3
 z_df = pd.pivot_table(z_df, values='Order_Quantity', index=['I_2', 'I_1'], columns='I_3',aggfunc=sum).reset_index()
 
-z_df.columns = ['Carcass_Type', 'Cut_Type']+list(days)
+# z_df.columns = ['Carcass_Type', 'Cut_Type']+list(days)
 z_df.to_csv('Pattern_Count_RT.csv')
 
 ze_df = pd.Series(ze_sol, name='Order_Quantity')

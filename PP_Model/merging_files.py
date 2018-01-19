@@ -56,35 +56,42 @@ frozen_inventory[['Products','Customer']] = pd.DataFrame(frozen_inventory.days.s
 del frozen_inventory['days']
 
 #8. Demand Fresh
-demand_fresh = pd.read_excel('Model_Input_Customer.xlsm', sheet_name="Demand_Fresh")
+demand_fresh = pd.read_excel('2test.xlsm', sheetname="Demand_Fresh")
 demand_fresh = demand_fresh.dropna(axis='columns', how='all')
 demand_fresh['keyfigure'] = "demand_fresh"
-demand_fresh[['Products','Customer']] = pd.DataFrame(demand_fresh.days.str.split('_',1).tolist(),
-                                   columns = ['Products','Customer'])
-#demand_fresh.columns = ['Customer','Day_0','Day_1','Day_2','Day_3','Day_4','Products','keyfigure']
-del demand_fresh['days']
+# print(demand_fresh.head())
+# del demand_fresh['days']
 
+demand_fresh[['Products','Customer']] = pd.DataFrame(demand_fresh['days'].str.split('_',1).tolist(),
+                                   columns = ['Products','Customer'])
+del demand_fresh['days']
+print(demand_fresh.head())
+demand_fresh.columns =  ['Day_1','Day_2','Day_3','Day_4','Day_5','keyfigure','Products','Customer',]
 
 #9. Demand Frozen
-demand_frozen = pd.read_excel('Model_Input_Customer.xlsm', sheet_name="Demand_Frozen")
+demand_frozen = pd.read_excel('2test.xlsm', sheet_name="Demand_Frozen")
 demand_frozen = demand_frozen.dropna(axis='columns', how='all')
 demand_frozen['keyfigure'] = "demand_frozen"
+
+
 demand_frozen[['Products','Customer']] = pd.DataFrame(demand_frozen.days.str.split('_',1).tolist(),
                                    columns = ['Products','Customer'])
-#demand_frozen.columns = ['Customer','Day_0','Day_1','Day_2','Day_3','Day_4','Products','keyfigure']
 del demand_frozen['days']
+demand_frozen.columns = ['Day_1','Day_2','Day_3','Day_4','Day_5','keyfigure','Products','Customer',]
 
 #10. Bird Count
 bird_count = pd.read_csv("Bird_Count.csv")
 bird_count.columns = ['Days','Number']
 bird_count = bird_count.T
 bird_count = bird_count.drop("Days")
-bird_count.columns = ['Day_1','Day_2','Day_3','Day_4']
+bird_count.columns = ['Day_1','Day_2','Day_3','Day_4','Day_5']
 bird_count['keyfigure'] = "bird_count"
 
 #11. Satsfied Demand Fresh
 temp1 = demand_fresh.drop(['Products','keyfigure','Customer'], axis=1)
 temp2 = unsatisfied_fresh.drop(['Products','keyfigure','Customer'], axis=1)
+# print(temp1)
+# print(temp2)
 satisfied_fresh = temp1 - temp2
 satisfied_fresh['Customer'] = unsatisfied_fresh['Customer']
 satisfied_fresh['Products'] = unsatisfied_fresh['Products']
