@@ -4,6 +4,7 @@ from pyomo.core.base import ConcreteModel, Param, Set, Var, Constraint, Objectiv
     NonNegativeIntegers, NonNegativeReals, maximize
 import json
 import re
+from docloud.job import JobClient
 from pyomo.environ import *
 import pandas as pd
 import os
@@ -58,7 +59,7 @@ for i in demand_frozen['item code'].astype(str).unique():
     if i in ff['Frozen SKU'].astype(str).unique():
         demand_frozen['item code'][demand_frozen.index[demand_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
 
-products = list(set(list(demand_fresh['item code'])+list(demand_frozen['item code'])))
+# products = list(set(list(demand_fresh['item code'])+list(demand_frozen['item code'])))
 selling_price_fresh = pd.read_excel(filename, sheetname='Selling_Price_Fresh')
 selling_price_fresh = selling_price_fresh.dropna(axis='columns', how='all')
 
@@ -186,7 +187,7 @@ def Wc(model):
 
 
 def b(model):
-    return common_data["Value"][4]
+    return common_data["Value"][5]
 
 
 def F(model):
@@ -206,7 +207,6 @@ def delta(model):
 
 shelf_lif = pd.read_excel(filename, sheetname='Shelf_Life')
 shelf_life = int(max(shelf_lif['Shelf_Life']))
-
 
 def L(model,i):
     try:
@@ -247,7 +247,7 @@ cut_pattern = list(set(y['Cutting Pattern']))
 
 # b_t = list(i for i in range(1, len(y.columns)+1))
 # y.columns = b_t
-
+products = list(set(demand_fresh['item code']).intersection(set(y['item code'])).union(set(demand_frozen['item code']).intersection(set(y['item code']))))
 # y = y.set_index([products, cut_pattern])
 # del y[1]
 # del y[2]
@@ -296,7 +296,7 @@ sections = list(s for s in range(1, len(cp)+1))
 def Jk(model, k):
     return cp[int(k-1)]
 #  F = Fresh and C = Frozen
-
+last_day = days[-1]
 
 model.T = Set(initialize=days, ordered=True)     # planning horizon
 model.J = Set(initialize=list(set(cut_pattern)), ordered = True)     # cutting patterns
@@ -318,10 +318,9 @@ model.hc = Param(model.P, initialize = hc)    # HC Frozen
 model.sf = Param(model.P, initialize = sf)     # penality for unstatisfed fresh
 model.sc = Param(model.P, initialize = sc)     # penality for unstatisfed frozen
 model.F = Param(initialize = F)    # Freezing tunnel capacity at t
-model.F.pprint()
 model.df = Param(model.P, model.T, initialize = df) # Demand of fresh products
 model.dc = Param(model.P, model.T, initialize = dc ) # Demand of frozen products
-model.tau = Param(initialize = tau)         # Freezing Process duration
+model.tau = Param(initialize = 0)         # Freezing Process duration
 model.Wf = Param(initialize = Wf)     # warehouse capacity
 model.Wc = Param(initialize = Wc)     # warehouse capacity
 model.t = Param(model.J, initialize = t)    #cutting operation for pattern j
@@ -330,9 +329,8 @@ model.Te = Param(model.T, initialize = Te)       # avaiable overtime hours
 # model.delta = Param(initialize = delta)         # auxilary pattern for better control the available carcass
 model.Ld = Set(model.P, initialize = Ld, ordered = True)
 # Extra Parameters to handle computed indices
-model.dc.pprint()
-td = list(range((days[0]-shelf_life), 1)) + days + list(range(days[-1]+1, days[-1]+shelf_life+1))
-# print(td)
+# td = list(range((days[0]-shelf_life), 1)) + days + list(range(days[-1]+1, days[-1]+shelf_life+1))
+td = [0]+days+[5]
 model.Td = Set(initialize=td, ordered=True)
 model.x = Var(model.P, model.T, domain=NonNegativeReals)   # total quantity of product i to be processed in period t
 model.xf = Var(model.P, model.Td, model.Td, domain=NonNegativeReals)        # quantity of fresh product i to process in period t to be sold at t'
@@ -345,9 +343,11 @@ model.Ic = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of 
 model.uf = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of fresh product i in t
 model.uc = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of frozen product i in t
 model.HA = Var(model.T, domain=NonNegativeIntegers)         # No of carcasses to be processed in period t
-
+model.z.pprint()
+print("model input done")
 def objective_function(model):
-    return sum(sum(model.pf[i]*model.vf[i, t] + model.pc[i]*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.b*model.xc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.hf[i]*model.xf[i, t, t+l] for t in model.T) for l in model.L[i]) for i in model.P) - sum(sum(model.sf[i]*model.uf[i, t] - model.sc[i]*model.uc[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.c[j]*model.z[j, r, t] + model.ce[j]*model.ze[j, r, t] for j in model.J) for r in model.R) for t in model.T)
+    return sum(sum(model.pf[i]*model.vf[i, t] + model.pc[i]*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.b*model.xc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.hf[i]*model.xf[i, t, t+l] for t in model.T) for l in model.L[i] if l >= last_day) for i in model.P) - sum(sum(model.sf[i]*model.uf[i, t] - model.sc[i]*model.uc[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.c[j]*model.z[j, r, t] + model.ce[j]*model.ze[j, r, t] for j in model.J) for r in model.R) for t in model.T)
+    # return sum(sum(model.Ic[i, t] for i in model.P)for t in model.Td)
 
 model.OBJ = Objective(rule = objective_function, sense = maximize)
 
@@ -377,7 +377,7 @@ model.A6Constraint = Constraint(model.T, rule = available_daily_ot)
 
 def fresh_frozen_balance(model,i,t):
         # print(model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i]) + model.xc[i,t])
-        return model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i]) + model.xc[i,t]
+        return model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i] if t+l <=last_day) + model.xc[i,t]
 
 model.A7Constraint = Constraint(model.P, model.T, rule = fresh_frozen_balance)
 
@@ -406,41 +406,77 @@ def freezing_capacity(model, t):
 model.A12Constraint = Constraint(model.T, rule = freezing_capacity)
 
 def fresh_product_wh_cap(model, t):
-    return sum(sum(sum(model.xf[i,t-l,td] for td in range(t, t-l+len(L(model,i)))) for l in model.L[i] if t-l > 0) for i in model.P) <= model.Wf
+    return sum(sum(sum(model.xf[i,t-l,td] for td in range(t, t-l+len(L(model,i))) if td <=last_day) for l in model.L[i] if t-l > 0) for i in model.P) <= model.Wf
 
 model.A13Constraint = Constraint(model.T, rule = fresh_product_wh_cap)
 
 def frozen_product_wh_cap(model, t):
-    if t <= 0:
+    if t < 0:
         return model.Ic[i,t] == 0
     else:
         return sum(model.Ic[i,t] for i in model.P) <= model.Wc
 
-model.A14Constraint = Constraint(model.T, rule = frozen_product_wh_cap)
+model.A15Constraint = Constraint(model.T, rule = frozen_product_wh_cap)
 
+initial_inv_frozen = pd.read_excel(filename, sheetname='Initial_Inventory')
 def initial_inventory(model,i):
-     return model.Ic[i,0] ==0
-model.initial_inv_Constraint = Constraint(model.P, rule = initial_inventory)
-
-initial_inv_frozen = pd.read_excel(filename,sheetname='Initial_Inventory')
-def initial_inventory_frozen_product(model,i):
     try:
-        return model.xc[i,0] ==np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==1]['Initial Inventory'].iloc[0]))
+        return model.Ic[i,0] ==np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0]))
     except IndexError:
         return Constraint.Skip
-model.initial_inv_frozen_Constraint = Constraint(model.P, rule = initial_inventory_frozen_product)
+# model.initial_inv_Constraint = Constraint(model.P, rule = initial_inventory)
 
+
+# def initial_inventory_frozen_product(model,i):
+for i in model.P:
+    try:
+        print(np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0])))
+        model.xc[i,0].fix(np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0])))
+    except:
+        model.xc[i,0].fix(0)
+#
+# model.initial_inv_frozen_Constraint = Constraint(model.P, rule = initial_inventory_frozen_product)
+# key = 'api_32f781e7-5704-40a4-94ea-e99e314945cf'
+# base_url = 'https://api-oaas.docloud.ibmcloud.com/job_manager/rest/v1/'
+# doc = DOcloud(base_url, key, verbose=True)
+# model.symbolic_solver_labels = True
+# model = model.write('imbalanced_part.lp',io_options={"symbolic_solver_labels": True})
+#
+# import glob
+# file = glob.glob('imbalanced_part.lp')
+# client = JobClient(base_url, key)
+# resp = client.execute(input=file,output="results.json")
+# model.solutions.store_to(results)
+# resp.write(filename='results.json',format = 'json')
+#model.pprint()
+#print ('end****')
+# resp = client.execute(input=file,output="imbalance_result.json", load_solution = True)
+# result = json.loads(resp.solution.decode("utf-8"))
+# print(result)
+# for i,v in result.items():
+#     for l,j in v.items():
+#         for p in j:
+#             print(p)
+print("solver running")
 # model.pprint()
-opt = SolverFactory('cplex')
-# opt.options["keepfiles"] = True
-# opt.options["sec"] = 1000
-opt.options["log"] = 1
-results = opt.solve(model, tee=True)
-# model.load(results)
+# opt = SolverFactory("cplex")
+#
+# solver_manager = SolverManagerFactory('neos')
+#
+# results = solver_manager.solve(model, opt=opt)
 
+# results.write()
+opt = SolverFactory('cplex')
+# opt.options["threads"] = 4
+opt.options["mip_tolerance_mipgap"] = 0.05
+opt.options["log"] = 1
+results = opt.solve(model, tee=True, keepfiles = True)
+model.load(results)
+#
 model.solutions.store_to(results)
 results.write(filename='results.json',format = 'json')
 # print(results)
+# objective_value = results['Solution'][0]['Objective']['OBJ']['Value']
 df = pd.read_excel(filename, sheetname="Demand_Fresh")
 df = df.dropna(axis='columns', how='all')
 column_len = len(df.loc[0])
@@ -460,68 +496,71 @@ with open('results.json') as data_file:
     z_sol = {k[1:]: v['Value'] for k, v in solution.items() if 'z[' in k}
     ze_sol = {k[1:]: v['Value'] for k, v in solution.items() if 'ze[' in k}
 
-# days = []
+days = ['item code']+ [0] + days
 # for i in range(1, column_len):
 #     days.append('Day_'+str(i))
-
-d_x = pd.DataFrame(0, index=products, columns=days)
+# print(xc_sol)
+d_x = pd.DataFrame(0, index=products, columns=days[1:])
 for i, j in list(itertools.product(model.P, model.T)):
     d_x[j][i] = model.x[i, j].value
 
-d_x.columns = days
+d_x.columns = days[1:]
 d_x.index = products
+print(d_x, 'Production')
 d_x.to_csv('Production.csv')
 
-d_xc = pd.DataFrame(0, index=products, columns=days)
+d_xc = pd.DataFrame(0, index=products, columns=days[1:])
 for i, j in list(itertools.product(model.P, model.T)):
     d_xc[j][i] = model.xc[i, j].value
 
-days_with_initial = days
+days_with_initial = days[1:]
 d_xc.columns = days_with_initial
 d_xc.index = products
+d_xc.index.name = 'item code'
 d_xc.to_csv('Frozen_Product_Production.csv')
 
-d_vf = pd.DataFrame(0, index=products, columns=days)
+d_vf = pd.DataFrame(0, index=products, columns=days[1:])
 for i, j in list(itertools.product(model.P, model.T)):
     d_vf[j][i] = model.vf[i, j].value
 
-d_vf.columns = days
+d_vf.columns = days[1:]
 d_vf.index = products
-print('sold fresh', d_vf)
+d_vf.index.name = 'item code'
 d_vf.to_csv('Fresh_Product_Sold.csv')
 
-d_vc = pd.DataFrame(0, index=products, columns=days)
+d_vc = pd.DataFrame(0, index=products, columns=days[1:])
 for i, j in list(itertools.product(model.P, model.T)):
     d_vc[j][i] = model.vc[i, j].value
 
-d_vc.columns = days
+d_vc.columns = days[1:]
 d_vc.index = products
+d_vc.index.name = 'item code'
 d_vc.to_csv('Frozen_Product_Sold.csv')
 
-d_Ic = pd.DataFrame(0, index=products, columns=days)
+d_Ic = pd.DataFrame(0, index=products, columns=days[1:])
 for i, j in list(itertools.product(model.P, model.T)):
     d_Ic[j][i] = model.Ic[i, j].value
 
 d_Ic.columns = days_with_initial
 d_Ic.index = products
+d_Ic.index.name = 'item code'
 d_Ic.to_csv('Frozen_Product_Inventory.csv')
 
-d_uf = pd.DataFrame(0, index=products, columns=days)
+d_uf = pd.DataFrame(0, index=products, columns=days[1:])
 for i, j in list(itertools.product(model.P, model.T)):
     d_uf[j][i] = model.uf[i, j].value
 
-d_uf.columns = days
+d_uf.columns = days[1:]
 d_uf.index = products
-print('Unsatisfied Fresh', d_uf)
+d_uf.index.name = 'item code'
 d_uf.to_csv('Unsatisfied_Fresh.csv')
 
-d_uc = pd.DataFrame(0, index=products, columns=days)
+d_uc = pd.DataFrame(0, index=products, columns=days[1:])
 for i, j in list(itertools.product(model.P, model.T)):
     d_uc[j][i] = model.uc[i, j].value
 
-d_uc.columns = days
+d_uc.columns = days[1:]
 d_uc.index = products
-
 d_uc.to_csv('Unsatisfied_Frozen.csv')
 
 df_two = pd.read_excel(filename, sheetname="Yield")
@@ -561,7 +600,7 @@ i_2 = []
 i_3 = []
 for i in ze_df['index']:
     i_1.append(i[2])
-    i_2.append(i[4])
+    i_2.append(i[5])
     i_3.append(i[6])
 del ze_df['index']
 ze_df['I_1'] = i_1
@@ -570,8 +609,7 @@ ze_df['I_3'] = i_3
 ze_df = pd.pivot_table(ze_df, values='Order_Quantity', index=['I_2', 'I_1'], columns='I_3', aggfunc=sum).reset_index()
 
 ze_df.to_csv('Pattern_Count_OT.csv')
-# print(xf_sol)
-xf_df = pd.Series(xf_sol, name='Order_Quantity')
+xf_df = pd.Series(x_sol, name='Order_Quantity')
 xf_df = pd.DataFrame(xf_df)
 xf_df = xf_df.reset_index()
 i_1 = []
@@ -586,13 +624,46 @@ xf_df['I_1'] = i_1
 xf_df['I_2'] = i_2
 xf_df['I_3'] = i_3
 xf_df = pd.pivot_table(xf_df, values='Order_Quantity', index=['I_1', 'I_2'], columns='I_3', aggfunc=sum).reset_index()
-# print(xf_df)
 xf_df.to_csv('Process_Fresh_OverHorizon.csv')
-
 HA = pd.DataFrame({'Number':HA_sol})
 HA.to_csv("Bird_Count.csv")
 print(HA)
 
-# for i, t, td in list(itertools.product(model.P, model.T, model.T)):
-#     if (model.xf[i, t, td].value > 1000):
-#         print(model.xf[i, t, td].value)
+arr = []
+for i,j,k in itertools.product(model.J, model.R, model.T):
+    val = value(model.z[i,j,k])
+    if val > 0:
+        arr.append({'Cutting_pattern':i, 'Bird_Type':j, 'Day':k, 'count':round(val,2), 'keyfigure':'Pattern_Count_RT'})
+
+for i,j,k in itertools.product(model.J, model.R, model.T):
+    val = value(model.ze[i,j,k])
+    if val > 0:
+        arr.append({'Cutting_pattern':i, 'Bird_Type':j, 'Day':k, 'count':round(val,2), 'keyfigure':'Pattern_Count_OT'})
+data_required = pd.DataFrame(arr)
+print(data_required)
+data_required.to_csv('production_count'+str(last_day)+'.csv',index = False)
+profit = {}
+selling = {}
+freezing_cost = {}
+holding_fresh = {}
+holding_frozen = {}
+penalty = {}
+operating_cost ={}
+cost = []
+for t in model.T:
+    cost.append({'Day':t,'Cost':sum(model.pf[i]*model.vf[i, t].value + model.pc[i]*model.vc[i, t].value for i in model.P),'keyfigure':'Selling_Price'})
+    cost.append({'Day':t,'Cost':sum(model.b*model.xc[i, t].value for i in model.P),'keyfigure':'freezing_cost'})
+    cost.append({'Day':t,'Cost':sum(model.hc[i]*model.Ic[i, t].value for i in model.P),'keyfigure':'holding_frozen'})
+    cost.append({'Day':t,'Cost':sum(sum(model.hf[i]*model.xf[i, t, t+l].value for l in model.L[i] if l >= last_day) for i in model.P),'keyfigure':'holding_fresh'})
+    cost.append({'Day':t,'Cost':sum(model.sf[i]*model.uf[i, t].value - model.sc[i]*model.uc[i, t].value for i in model.P),'keyfigure':'penalty'})
+    cost.append({'Day':t,'Cost':sum(sum(model.c[j]*model.z[j, r, t].value + model.ce[j]*model.ze[j, r, t].value for j in model.J) for r in model.R),'keyfigure':'operating_cost'})
+    selling[t] = sum(model.pf[i]*model.vf[i, t].value + model.pc[i]*model.vc[i, t].value for i in model.P)
+    freezing_cost[t] =sum(model.b*model.xc[i, t].value for i in model.P)
+    holding_frozen[t] = sum(model.hc[i]*model.Ic[i, t].value for i in model.P)
+    holding_fresh[t] = sum(sum(model.hf[i]*model.xf[i, t, t+l].value for l in model.L[i] if l >= last_day) for i in model.P)
+    penalty[t]=sum(model.sf[i]*model.uf[i, t].value - model.sc[i]*model.uc[i, t].value for i in model.P)
+    operating_cost[t]=sum(sum(model.c[j]*model.z[j, r, t].value + model.ce[j]*model.ze[j, r, t].value for j in model.J) for r in model.R)
+    profit[t] = selling[t]-freezing_cost[t]-holding_fresh[t]-holding_frozen[t]-penalty[t]-operating_cost[t]
+    cost.append({'Day':t,'Cost':profit[t],'keyfigure':'profit'})
+data_required = pd.DataFrame(cost)
+data_required.to_csv('cost'+str(last_day)+'.csv',index = False)
