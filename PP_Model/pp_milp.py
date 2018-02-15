@@ -3,7 +3,8 @@ from __future__ import division
 from pyomo.core.base import ConcreteModel, Param, Set, Var, Constraint, Objective,\
     NonNegativeIntegers, NonNegativeReals, maximize
 import json
-import re
+import time
+start_time = time.time()
 from docloud.job import JobClient
 from pyomo.environ import *
 import pandas as pd
@@ -18,11 +19,14 @@ import itertools
 model = ConcreteModel()
 
 # os.chdir('/home/rishi/GIT/imbalanced_parts/PP_Model/')
-if len(sys.argv) > 1:
-    filename = sys.argv[-1]
+if len(sys.argv) == 2:
+    filename = sys.argv[-2]
+    option = sys.argv[-1]
 else:
+    option = sys.argv[-1]
     filename = '/home/rishi/GIT/imbalanced_parts/PP_Model/Model_Input_Final.xlsm'
-
+print(filename,option)
+print(type(option))
 demand_fresh = pd.read_excel(filename, sheetname="Demand_Fresh")
 demand_fresh = demand_fresh.dropna(axis='columns', how='all')
 # demand_fresh_df = pd.DataFrame(0, index=range(1, len(demand_fresh)+1), columns=range(1, len(demand_fresh.loc[0])))
@@ -68,6 +72,11 @@ def pf(model,i):
         return np.nan_to_num(float(selling_price_fresh[selling_price_fresh['item code']==i]['Selling Price Fresh (in RM/kg)'].iloc[0]))
     except IndexError:
         return 10
+def priority_fresh(i):
+    try:
+        return np.nan_to_num(float(selling_price_fresh[selling_price_fresh['item code']==i]['Priority'].iloc[0]))
+    except IndexError:
+        return 1
 
 
 selling_price_frozen = pd.read_excel(filename, sheetname='Selling_Price_Frozen')
@@ -82,6 +91,12 @@ def pc(model, i):
         return np.nan_to_num(float(selling_price_frozen[selling_price_frozen['item code']==i]['Selling Price Frozen (in RM/kg)'].iloc[0]))
     except IndexError:
         return 10
+
+def priority_frozen(i):
+    try:
+        return np.nan_to_num(float(selling_price_frozen[selling_price_frozen['item code']==i]['Priority'].iloc[0]))
+    except IndexError:
+        return 1
 
 
 holding_price_fresh = pd.read_excel(filename, sheetname='Holding_Cost_Fresh')
@@ -238,7 +253,9 @@ def t(model,j):
 
 y = pd.read_excel(filename, sheetname='Yield',)
 y = y.dropna(axis ='columns', how='all')
-bird_type = y.columns[2:]
+y['Marination Yield (%)']=y['Marination Yield (%)'].fillna(value=100)
+# y = y.fillna(0)
+bird_type = y.columns[2:-1]
 cut_pattern = list(set(y['Cutting Pattern']))
 # products = list(i for i in range(1, len(y['item code'].unique())+1))
 # products = np.repeat(products, len(y['Cutting Pattern'].unique()))
@@ -258,7 +275,8 @@ products = list(set(demand_fresh['item code']).intersection(set(y['item code']))
 
 def yd(model, i, j, r):
     try:
-        return np.nan_to_num(float(y[(y['item code']==i) & (y['Cutting Pattern']==j)][r].iloc[0]))
+        p=np.nan_to_num(float(y[(y['item code']==i) & (y['Cutting Pattern']==j)][r].iloc[0]))*np.nan_to_num(y['Marination Yield (%)'][y['item code']==i])/100
+        return p[0]
     except IndexError:
         return 0
 
@@ -343,10 +361,14 @@ model.Ic = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of 
 model.uf = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of fresh product i in t
 model.uc = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of frozen product i in t
 model.HA = Var(model.T, domain=NonNegativeIntegers)         # No of carcasses to be processed in period t
-model.z.pprint()
 print("model input done")
 def objective_function(model):
-    return sum(sum(model.pf[i]*model.vf[i, t] + model.pc[i]*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.b*model.xc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.hf[i]*model.xf[i, t, t+l] for t in model.T) for l in model.L[i] if l >= last_day) for i in model.P) - sum(sum(model.sf[i]*model.uf[i, t] - model.sc[i]*model.uc[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.c[j]*model.z[j, r, t] + model.ce[j]*model.ze[j, r, t] for j in model.J) for r in model.R) for t in model.T)
+    if option=='1':
+        return sum(sum(model.pf[i]*model.vf[i, t] + model.pc[i]*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.b*model.xc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.hf[i]*model.xf[i, t, t+l] for t in model.T) for l in model.L[i] if l >= last_day) for i in model.P) - sum(sum(model.sf[i]*model.uf[i, t] - model.sc[i]*model.uc[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.c[j]*model.z[j, r, t] + model.ce[j]*model.ze[j, r, t] for j in model.J) for r in model.R) for t in model.T)
+    else:
+        return sum(sum(np.exp(15/(priority_fresh(i)))*model.pf[i]*model.vf[i, t] + np.exp(15/(priority_frozen(i)**2))*model.pc[i]*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.b*model.xc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.hf[i]*model.xf[i, t, t+l] for t in model.T) for l in model.L[i] if l >= last_day) for i in model.P) - sum(sum(model.sf[i]*model.uf[i, t] - model.sc[i]*model.uc[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.c[j]*model.z[j, r, t] + model.ce[j]*model.ze[j, r, t] for j in model.J) for r in model.R) for t in model.T)
+
+
     # return sum(sum(model.Ic[i, t] for i in model.P)for t in model.Td)
 
 model.OBJ = Objective(rule = objective_function, sense = maximize)
@@ -459,19 +481,19 @@ for i in model.P:
 #             print(p)
 print("solver running")
 # model.pprint()
-# opt = SolverFactory("cplex")
+opt = SolverFactory("cplex")
 #
-# solver_manager = SolverManagerFactory('neos')
+solver_manager = SolverManagerFactory('neos')
 #
-# results = solver_manager.solve(model, opt=opt)
+results = solver_manager.solve(model, opt=opt)
 
 # results.write()
-opt = SolverFactory('cplex')
+# opt = SolverFactory('cplex')
 # opt.options["threads"] = 4
-opt.options["mip_tolerance_mipgap"] = 0.05
-opt.options["log"] = 1
-results = opt.solve(model, tee=True, keepfiles = True)
-model.load(results)
+# opt.options["mip_tolerance_mipgap"] = 0.05
+# opt.options["log"] = 1
+# results = opt.solve(model, tee=True, keepfiles = True)
+# model.load(results)
 #
 model.solutions.store_to(results)
 results.write(filename='results.json',format = 'json')
@@ -641,7 +663,7 @@ for i,j,k in itertools.product(model.J, model.R, model.T):
         arr.append({'Cutting_pattern':i, 'Bird_Type':j, 'Day':k, 'count':round(val,2), 'keyfigure':'Pattern_Count_OT'})
 data_required = pd.DataFrame(arr)
 print(data_required)
-data_required.to_csv('production_count'+str(last_day)+'.csv',index = False)
+data_required.to_csv('production_count.csv',index = False)
 profit = {}
 selling = {}
 freezing_cost = {}
@@ -666,4 +688,5 @@ for t in model.T:
     profit[t] = selling[t]-freezing_cost[t]-holding_fresh[t]-holding_frozen[t]-penalty[t]-operating_cost[t]
     cost.append({'Day':t,'Cost':profit[t],'keyfigure':'profit'})
 data_required = pd.DataFrame(cost)
-data_required.to_csv('cost'+str(last_day)+'.csv',index = False)
+data_required.to_csv('cost.csv',index = False)
+print("--- %s seconds ---" % (time.time() - start_time))

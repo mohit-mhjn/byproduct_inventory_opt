@@ -49,7 +49,6 @@ frozen_products = unsatisfied_frozen['item_code']
 
 #5. Production
 production = pd.read_csv("Production.csv")
-print('BBRS07595P24DC' in production['Unnamed: 0'])
 production.columns = ['item_code','0','1','2','3','4']
 production['keyfigure'] = "production"
 # production[['Products','Customer']] = pd.DataFrame(production.days.str.split('_',1).tolist(),
@@ -170,16 +169,28 @@ fresh_inventory['keyfigure'] = 'fresh_inventory'
 cols = fresh_inventory.columns.tolist()
 cols = [cols[5]] + cols[:5] + cols[-1:]
 fresh_inventory = fresh_inventory[cols]
-# ls = [fresh_sold,frozen_sold,unsatisfied_fresh,unsatisfied_frozen,production,frozen_production,frozen_inventory,demand_fresh,demand_frozen,bird_count]
-#print (ls)
-df_final = pd.concat([fresh_sold,frozen_sold,fresh_production,unsatisfied_fresh,unsatisfied_frozen,frozen_production,fresh_inventory,frozen_inventory,demand_fresh,demand_frozen,bird_count],axis=0)
+ls = [fresh_sold,frozen_sold,unsatisfied_fresh,unsatisfied_frozen,fresh_production,frozen_production,frozen_inventory,demand_fresh,demand_frozen,bird_count]
+# print (ls)
+# df_final = pd.concat([fresh_sold,frozen_sold,fresh_production,unsatisfied_fresh,unsatisfied_frozen,frozen_production,fresh_inventory,frozen_inventory,demand_fresh,demand_frozen,bird_count],axis=0)
+df_final = pd.concat(ls)
 df_final.columns = ['item_code', 'Day0', 'Day1', 'Day2', 'Day3', 'Day4', 'keyfigure']
-df_final = pd.wide_to_long(df_final, stubnames='Day', i=['item_code', 'keyfigure'], j='Days')
-df_final = df_final.reset_index()
+#df_final.reset_index(inplace=True,drop=True)
+#df_final = pd.wide_to_long(df_final, stubnames='Day', i=['keyfigure','item_code'], j='Days')
+arr = []
+for indx,row in df_final.iterrows():
+    arr.append({'item_code':row['item_code'],'Day':0,'Value':row['Day0'],'keyfigure':row['keyfigure']})
+    arr.append({'item_code': row['item_code'], 'Day': 1, 'Value': row['Day1'], 'keyfigure': row['keyfigure']})
+    arr.append({'item_code': row['item_code'], 'Day': 2, 'Value': row['Day2'], 'keyfigure': row['keyfigure']})
+    arr.append({'item_code': row['item_code'], 'Day': 3, 'Value': row['Day3'], 'keyfigure': row['keyfigure']})
+    arr.append({'item_code': row['item_code'], 'Day': 4, 'Value': row['Day4'], 'keyfigure': row['keyfigure']})
+
+df_final = pd.DataFrame(arr)
+df_final = df_final.reset_index(drop = True)
 df_final.columns =  ['Products','keyfigure','Days','Value']
+df_final['Products']=df_final['Products'].astype(str)
 df_final['ProdType'] = np.where(df_final['Products'].str[-1]=='F', 'Frozen', 'Fresh')
 cols = df_final.columns.tolist()
 cols = [cols[0]]+ [cols[-1]] +cols[1:4]
 df_final = df_final[cols]
-df_final.to_csv("Dashboard_v4.csv",index=False)
+df_final.to_csv("Dashboard.csv",index=False)
 
