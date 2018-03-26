@@ -158,7 +158,6 @@ temp2 = frozen_production.drop(['item_code','keyfigure'],axis=1)
 temp3 = fresh_sold.drop(['item_code','keyfigure'],axis=1)
 fresh_inventory = temp1 - temp2 - temp3
 for i in fresh_inventory.columns[:-1]:
-#     print(i)
     fresh_inventory[str(int(i)+1)] = fresh_inventory[i]+fresh_inventory[str(int(i)+1)]
 fresh_inventory[fresh_inventory < 0] = 0
 fresh_inventory['item_code'] = production['item_code']
@@ -177,7 +176,7 @@ df_final.columns = ['item_code', 'Day0', 'Day1', 'Day2', 'Day3', 'Day4', 'keyfig
 #df_final.reset_index(inplace=True,drop=True)
 #df_final = pd.wide_to_long(df_final, stubnames='Day', i=['keyfigure','item_code'], j='Days')
 arr = []
-for indx,row in df_final.iterrows():
+for indx, row in df_final.iterrows():
     arr.append({'item_code':row['item_code'],'Day':0,'Value':row['Day0'],'keyfigure':row['keyfigure']})
     arr.append({'item_code': row['item_code'], 'Day': 1, 'Value': row['Day1'], 'keyfigure': row['keyfigure']})
     arr.append({'item_code': row['item_code'], 'Day': 2, 'Value': row['Day2'], 'keyfigure': row['keyfigure']})
@@ -186,11 +185,31 @@ for indx,row in df_final.iterrows():
 
 df_final = pd.DataFrame(arr)
 df_final = df_final.reset_index(drop = True)
-df_final.columns =  ['Products','keyfigure','Days','Value']
-df_final['Products']=df_final['Products'].astype(str)
-df_final['ProdType'] = np.where(df_final['Products'].str[-1]=='F', 'Frozen', 'Fresh')
+# df_final.columns =  ['Products','keyfigure','Days','Value']
+# df_final['Products']=df_final['Products'].astype(str)
+
+#
+# df_final = df_final[cols]
+# df_final.columns =  ['Products','keyfigure','Days','Value']
+df_final['ProdType'] = np.where(df_final['item_code'].str[-1]=='F', 'Frozen', 'Fresh')
 cols = df_final.columns.tolist()
-cols = [cols[0]]+ [cols[-1]] +cols[1:4]
+cols = [cols[2]]+ [cols[-1]] +[cols[-2]] + cols[0:2]
 df_final = df_final[cols]
+selling_fresh = pd.read_excel('Model_Input_Final.xlsm', sheetname="Selling_Price_Fresh")
+selling_fresh = selling_fresh.dropna(axis='columns', how='all')
+selling_fresh = selling_fresh.rename(index=str, columns={"item code": "item_code"})
+df_final= df_final.merge(selling_fresh, on='item_code', how='left')
+del df_final['Selling Price Fresh (in RM/kg)']
+selling_frozen = pd.read_excel('Model_Input_Final.xlsm', sheetname="Selling_Price_Frozen")
+selling_frozen = selling_frozen.dropna(axis='columns', how='all')
+selling_frozen = selling_frozen.rename(index=str, columns={"item code": "item_code"})
+df_final = df_final.merge(selling_frozen, on='item_code', how='left')
+df_final['Priority'] = np.max(df_final[['Priority_x', 'Priority_y']], axis=1)
+df_final = df_final.drop(labels=['Priority_x', 'Priority_y'], axis=1)
+del df_final['Selling Price Frozen (in RM/kg)']
+
+df_final['Priority'] = df_final['Priority'].fillna(2)
+df_final.columns =  ['Products','ProdType','keyfigure','Days','Value', 'Priority']
+
 df_final.to_csv("Dashboard.csv",index=False)
 
