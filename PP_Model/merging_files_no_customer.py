@@ -65,6 +65,7 @@ frozen_production['keyfigure'] = "frozen_production"
 convert(frozen_production)
 #7. Frozen Inventory
 frozen_inventory = pd.read_csv("Frozen_Product_Inventory.csv")
+print(frozen_inventory)
 frozen_inventory.columns = ['item_code','0','1','2','3','4']
 frozen_inventory['keyfigure'] = "frozen_inventory"
 # frozen_inventory[['Products','Customer']] = pd.DataFrame(frozen_inventory.days.str.split('_',1).tolist(),

@@ -13,7 +13,7 @@ import numpy as np
 import sys
 import itertools
 # MIP formulation from A Mixed Integer Linear Program for Operational Planning Meat Planing Plant
-# AVIOTA
+# KnexINC
 # Rishikesh
 
 model = ConcreteModel()
@@ -44,11 +44,31 @@ def df(model, i, j):
 
 demand_frozen = pd.read_excel(filename, sheet_name="Demand_Frozen")
 demand_frozen = demand_frozen.dropna(axis='columns', how = 'all')
+inven = pd.read_excel('Model_Input_Final.xlsm', sheetname="Initial_Inventory")
+data_input = pd.merge(demand_frozen, inven[['item code', 'Initial Inventory']]
+                      , left_on=['item code'], right_on=['item code'], how='left')
+
+days = list(demand_fresh.columns[1:])
+for i in days:
+    for index, row in data_input.iterrows():
+        if row['Initial Inventory'] >= row[i]:
+            data_input.loc[index, 'Initial Inventory'] = row['Initial Inventory'] - row[i]
+            data_input.loc[index, i] = 0
+        else:
+            data_input.loc[index, 'Initial Inventory'] = row['Initial Inventory'] - row[i]
+            data_input.loc[index, i] = row[i] - row['Initial Inventory']
+            data_input.loc[index, 'Initial Inventory'] = 0
+
+demand_frozen = data_input.dropna()
 # demand_frozen_dc = pd.DataFrame(0, index=range(1, len(demand_frozen)+1), columns=range(1, len(demand_frozen.loc[0])))
 # for i in range(0, len(demand_frozen)):
 #     for j in range(1, len(demand_frozen.loc[0])):
 #         demand_frozen_dc.loc[i+1][j] = demand_frozen.loc[i][j]
-
+def convert_fresh(df):
+    l = []
+    for f in df['item code']:
+        l.append(f[:-1] + 'C')
+    df['item code'] = l
 
 def dc(model, i, j):
     try:
@@ -58,11 +78,11 @@ def dc(model, i, j):
 
 ff = pd.read_excel('Model_Input_Final.xlsm', sheet_name="Fresh_Frozen_Relation")
 ff = ff.dropna(axis='columns', how='all')
-ff =ff.astype(str)
+ff = ff.astype(str)
 for i in demand_frozen['item code'].astype(str).unique():
     if i in ff['Frozen SKU'].astype(str).unique():
         demand_frozen['item code'][demand_frozen.index[demand_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
-
+# convert_fresh(demand_frozen)
 # products = list(set(list(demand_fresh['item code'])+list(demand_frozen['item code'])))
 selling_price_fresh = pd.read_excel(filename, sheet_name='Selling_Price_Fresh')
 selling_price_fresh = selling_price_fresh.dropna(axis='columns', how='all')
@@ -269,7 +289,6 @@ products = list(set(demand_fresh['item code']).intersection(set(y['item code']))
 # del y[1]
 # del y[2]
 # y.columns = range(1, len(y.columns)+1)
-
 # bird_type = y.columns
 
 
@@ -289,7 +308,6 @@ def alpha(model, r):
     return round(np.nan_to_num(float(bird_type_ratio[bird_type_ratio['Bird Type']==r]['Ratio'].iloc[0])),2)
 
 
-days = list(demand_fresh.columns[1:])
 availability = pd.read_excel(filename ,sheet_name='Availability')
 availability = availability.dropna(axis='columns', how='all')
 
@@ -321,12 +339,10 @@ def sum_dc(model, t):
 
 model.T = Set(initialize=days, ordered=True)     # planning horizon
 model.J = Set(initialize=list(set(cut_pattern)), ordered = True)     # cutting patterns
-model.J.pprint()
 model.P = Set(initialize=products, ordered = True)     # products
 model.L = Set(model.P, initialize=L, ordered=True)     # shell life for fresh products
 model.H = Param(model.T, initialize = H)         # min no of avaiable carcasses of type r in all planning horizon
 model.K = Set(initialize = sections)             # no of sections
-model.K.pprint()
 model.Jk = Set(model.K, initialize = Jk)         # cutting pattern
 model.Jk.pprint()
 model.R = Set(initialize=bird_type, ordered = True)     # type of carcasses
@@ -375,33 +391,35 @@ print("model input done")
 
 
 def objective_function(model):
-    if option=='1':
+    if option == '1':
         # return sum(sum(sum(sum((model.df[i,t]+model.dc[i,t])*model.yd[i,j,r] * (model.z[j,r,t] + model.ze[j,r,t]) for j in model.J ) for r in model.R ) for i in model.P) for t in model.T)
         return sum(sum(model.pf[i]*model.vf[i, t] + model.pc[i]*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.b*model.xc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.hf[i]*model.xf[i, t, t+l] for t in model.T) for l in model.L[i] if l >= last_day) for i in model.P) - sum(sum(model.sf[i]*model.uf[i, t] - model.sc[i]*model.uc[i, t] for i in model.P) for t in model.T) - sum(sum(sum(model.c[j]*model.z[j, r, t] + model.ce[j]*model.ze[j, r, t] for j in model.J) for r in model.R) for t in model.T)
-    elif option =='3':
+    elif option == '3':
         return -sum(sum((priority_fresh(i)**5)*((model.df[i, t]))*model.uf[i, t] - ((priority_frozen(i)**5))*((model.dc[i,t]))*model.uc[i, t] for i in model.P) for t in model.T) \
                - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T)# - sum(sum( model.yc[i, t] - model.yf[i, t] for i in model.P) for t in model.T)
     else:
         # return sum(sum(priority_fresh(i)*model.uf[i, t] + priority_frozen(i)*model.uc[i, t] for i in model.P) for t in model.T)
-        return sum(sum(model.Ic[i, t] for i in model.P) for t in model.T)
+        return sum(sum(model.Ic[i, t] for i in model.P) for t in model.Td)# + sum(model.HA[t] for t in model.T)#+ sum(sum(sum(model.z[j,r,t] + model.ze[j,r,t] for j in model.J ) for r in model.R ) for t in model.T)
         # return sum(sum(((priority_fresh(i)**5))*(model.df[i, t] **2)*model.vf[i, t] + ((priority_frozen(i)**5))*(model.dc[i,t]**2)*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T)
-model.OBJ = Objective(rule = objective_function, sense = minimize)
+model.OBJ = Objective(rule = objective_function, sense = maximize)
 
 model.Kd = Set(initialize=RangeSet(3))
 def carcass_availability(model, r, t, k):
-    return sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4])+sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]) == model.alpha[r]*model.HA[t]
+    # print(sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k] if j ==1) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4] if j ==1)+sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]  if j ==1) == model.alpha[r]*model.HA[t])
+    return sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]) == model.alpha[r]*model.HA[t]
 model.A2Constraint = Constraint(model.R, model.T, model.Kd,  rule = carcass_availability)
 
 def carcass_limit(model, t):
     return model.HA[t] <= model.H[t]
-# model.A3Constraint = Constraint( model.T,rule = carcass_limit)
+model.A3Constraint = Constraint(model.T,rule = carcass_limit)
 
 def carcass_limit_lower(model, t):
     return .3*model.H[t] <= model.HA[t]
 # model.carcass_limit_constraint = Constraint(model.T, rule= carcass_limit_lower)
+lis =  [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 1, 2, 3, 4, 35, 36, 5]
 
 def cutting_pattern(model,i,t):
-    return model.x[i,t] == sum(model.yd[i,j,r] * (model.z[j,r,t] + model.ze[j,r,t]) for k in model.K for j in model.Jk[k] for r in model.R)
+    return model.x[i,t] == sum(model.yd[i,j,r] * (model.z[j,r,t] + model.ze[j,r,t]) for j in lis for r in model.R)
 model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern)
 
 def available_daily_wh (model,t):
@@ -414,8 +432,7 @@ def available_daily_ot(model,t):
 model.A6Constraint = Constraint(model.T, rule = available_daily_ot)
 
 def fresh_frozen_balance(model,i,t):
-        # print(model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i]) + model.xc[i,t])
-        return model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i] if t+l <=last_day) + model.xc[i,t]
+    return model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i] if t+l <=last_day) + model.xc[i,t]
 
 model.A7Constraint = Constraint(model.P, model.T, rule = fresh_frozen_balance)
 
@@ -425,7 +442,6 @@ def fresh_product_sold(model,i,t):
 model.A8Constraint = Constraint(model.P, model.T, rule = fresh_product_sold)
 
 def frozen_product_sold(model,i,t):
-    if t > 0:
         return model.vc[i,t] == model.Ic[i,t-1] + model.xc[i,t-model.tau] - model.Ic[i,t]
 model.A9Constraint = Constraint(model.P,model.T, rule = frozen_product_sold)
 
@@ -438,18 +454,18 @@ def demand_fresh_product (model,i, t):
 model.A11Constraint = Constraint(model.P, model.T,  rule = demand_fresh_product)
 
 def unsatisfied_fresh(model,i ,t):
-    if priority_fresh(i) == 3:
+    # if priority_fresh(i) == 3:
         return model.uc[i,t] == 0
-    else:
-        return Constraint.Skip
-model.unsatisfied_fresh = Constraint(model.P, model.T, rule = unsatisfied_fresh)
+    # else:
+    #     return Constraint.Skip
+# model.unsatisfied_fresh = Constraint(model.P, model.T, rule = unsatisfied_fresh)
 
 def unsatisfied_frozen(model, i, t):
-    if priority_frozen(i) == 3:
+    # if priority_frozen(i) == 3:
         return model.uf[i, t] == 0
-    else:
-        return Constraint.Skip
-model.unsatisfied_frozen = Constraint(model.P, model.T, rule = unsatisfied_frozen)
+    # else:
+    #     return Constraint.Skip
+# model.unsatisfied_frozen = Constraint(model.P, model.T, rule = unsatisfied_frozen)
 
 def freezing_capacity(model, t):
     return sum(sum(model.xc[i,t] for t in range(t-model.tau, t+1) if t >0 )for i in model.P) <= model.F
@@ -467,16 +483,15 @@ def frozen_product_wh_cap(model, t):
     else:
         return sum(model.Ic[i,t] for i in model.P) <= model.Wc
 
-model.A15Constraint = Constraint(model.T, rule = frozen_product_wh_cap)
+# model.A15Constraint = Constraint(model.T, rule = frozen_product_wh_cap)
 
 initial_inv_frozen = pd.read_excel(filename, sheet_name='Initial_Inventory')
 def initial_inventory(model,i):
-    try:
-        return model.Ic[i,0] ==np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0]))
-    except IndexError:
-        return Constraint.Skip
+    # try:
+    #     return model.Ic[i,0] == np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0]))
+    # except IndexError:
+        return model.Ic[i, 0] == 0
 model.initial_inv_Constraint = Constraint(model.P, rule = initial_inventory)
-
 
 def indicator_fresh(model, i, t):
     return model.uc[i, t] - model.yc[i, t]* model.sum_dc[t] <= 0
@@ -488,11 +503,11 @@ model.indicator_frozen_Constraint = Constraint(model.P, model.T, rule=indicator_
 
 # def initial_inventory_frozen_product(model,i):
 for i in model.P:
-    try:
-        model.xc[i,0].fix(np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0])))
-    except:
+    # try:
+    #     model.xc[i,0].fix(np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0])))
+    # except:
         model.xc[i,0].fix(0)
-#
+
 # model.initial_inv_frozen_Constraint = Constraint(model.P, rule = initial_inventory_frozen_product)
 # key = 'api_32f781e7-5704-40a4-94ea-e99e314945cf'
 # base_url = 'https://api-oaas.docloud.ibmcloud.com/job_manager/rest/v1/'
@@ -605,7 +620,7 @@ d_vc.index.name = 'item code'
 d_vc.to_csv('Frozen_Product_Sold.csv')
 
 d_Ic = pd.DataFrame(0, index=products, columns=days[1:])
-for i, j in list(itertools.product(model.P, model.T)):
+for i, j in list(itertools.product(model.P, td[:5])):
     d_Ic[j][i] = model.Ic[i, j].value
 
 d_Ic.columns = days_with_initial
