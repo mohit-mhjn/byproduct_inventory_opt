@@ -12,9 +12,13 @@ import os
 import numpy as np
 import sys
 import itertools
+from solutionmethod import solve_model
 # MIP formulation from A Mixed Integer Linear Program for Operational Planning Meat Planing Plant
 # KnexINC
 # Rishikesh
+
+directory = os.path.dirname(os.path.abspath(__file__))
+os.chdir(directory)
 
 model = ConcreteModel()
 
@@ -24,7 +28,7 @@ if len(sys.argv) >= 2:
     option = sys.argv[-1]
 else:
     option = sys.argv[-1]
-    filename = '/home/rishi/GIT/imbalanced_parts/PP_Model/Model_Input_Final.xlsm'
+    filename = '/home/nikola/git_projects/imbalance/PP_Model/Model_Input_Final.xlsm'
 print(filename,option)
 print(option)
 demand_fresh = pd.read_excel(filename, sheet_name="Demand_Fresh")
@@ -389,7 +393,6 @@ model.yc = Var(model.P, model.T, domain=Binary)
 model.yf = Var(model.P, model.T, domain=Binary)
 print("model input done")
 
-
 def objective_function(model):
     if option == '1':
         # return sum(sum(sum(sum((model.df[i,t]+model.dc[i,t])*model.yd[i,j,r] * (model.z[j,r,t] + model.ze[j,r,t]) for j in model.J ) for r in model.R ) for i in model.P) for t in model.T)
@@ -414,35 +417,32 @@ def carcass_limit(model, t):
 model.A3Constraint = Constraint(model.T,rule = carcass_limit)
 
 def carcass_limit_lower(model, t):
-    return .3*model.H[t] <= model.HA[t]
+    return 0.3*model.H[t] <= model.HA[t]
 # model.carcass_limit_constraint = Constraint(model.T, rule= carcass_limit_lower)
 lis =  [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 1, 2, 3, 4, 35, 36, 5]
 
-def cutting_pattern(model,i,t):
-    return model.x[i,t] == sum(model.yd[i,j,r] * (model.z[j,r,t] + model.ze[j,r,t]) for j in lis for r in model.R)
-model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern)
+def cutting_pattern_gen(model,i,t):
+    return model.x[i,t] <= sum(model.yd[i,j,r] * (model.z[j,r,t] + model.ze[j,r,t]) for j in lis for r in model.R)
+model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern_gen)
 
-def available_daily_wh (model,t):
+def available_daily_wh(model,t):
     return sum(sum(model.z[j,r,t]* model.t[j] for j in model.J) for r in model.R) <= model.Ta[t]
 model.A5Constraint = Constraint(model.T, rule = available_daily_wh)
 
 def available_daily_ot(model,t):
     return sum(sum(model.ze[j,r,t]* model.t[j] for j in model.J) for r in model.R) <= model.Te[t]
-
 model.A6Constraint = Constraint(model.T, rule = available_daily_ot)
 
 def fresh_frozen_balance(model,i,t):
-    return model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i] if t+l <=last_day) + model.xc[i,t]
-
+    return model.x[i,t] >= sum(model.xf[i,t,t+l] for l in model.Ld[i] if t+l <=last_day) + model.xc[i,t]
 model.A7Constraint = Constraint(model.P, model.T, rule = fresh_frozen_balance)
 
 def fresh_product_sold(model,i,t):
-        return model.vf[i,t] == sum(model.xf[i,t-l,t] for l in model.Ld[i] if t-l > 0 )
-
+        return model.vf[i,t] <= sum(model.xf[i,t-l,t] for l in model.Ld[i] if t-l > 0)
 model.A8Constraint = Constraint(model.P, model.T, rule = fresh_product_sold)
 
 def frozen_product_sold(model,i,t):
-        return model.vc[i,t] == model.Ic[i,t-1] + model.xc[i,t-model.tau] - model.Ic[i,t]
+        return model.vc[i,t] <= model.Ic[i,t-1] + model.xc[i,t-model.tau] - model.Ic[i,t]
 model.A9Constraint = Constraint(model.P,model.T, rule = frozen_product_sold)
 
 def demand_frozen_product(model, i, t):
@@ -469,12 +469,10 @@ def unsatisfied_frozen(model, i, t):
 
 def freezing_capacity(model, t):
     return sum(sum(model.xc[i,t] for t in range(t-model.tau, t+1) if t >0 )for i in model.P) <= model.F
-
 model.A12Constraint = Constraint(model.T, rule = freezing_capacity)
 
 def fresh_product_wh_cap(model, t):
     return sum(sum(sum(model.xf[i,t-l,td] for td in range(t, t-l+len(L(model,i))) if td <=last_day) for l in model.L[i] if t-l > 0) for i in model.P) <= model.Wf
-
 model.A13Constraint = Constraint(model.T, rule = fresh_product_wh_cap)
 
 def frozen_product_wh_cap(model, t):
@@ -482,8 +480,7 @@ def frozen_product_wh_cap(model, t):
         return model.Ic[i,t] == 0
     else:
         return sum(model.Ic[i,t] for i in model.P) <= model.Wc
-
-# model.A15Constraint = Constraint(model.T, rule = frozen_product_wh_cap)
+model.A15Constraint = Constraint(model.T, rule = frozen_product_wh_cap)
 
 initial_inv_frozen = pd.read_excel(filename, sheet_name='Initial_Inventory')
 def initial_inventory(model,i):
@@ -502,11 +499,11 @@ def indicator_frozen(model, i, t):
 model.indicator_frozen_Constraint = Constraint(model.P, model.T, rule=indicator_frozen)
 
 # def initial_inventory_frozen_product(model,i):
-for i in model.P:
-    # try:
-    #     model.xc[i,0].fix(np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0])))
-    # except:
-        model.xc[i,0].fix(0)
+# for i in model.P:
+#     # try:
+#     #     model.xc[i,0].fix(np.nan_to_num(float(initial_inv_frozen[initial_inv_frozen['item code']==i]['Initial Inventory'].iloc[0])))
+#     # except:
+#         model.xc[i,0].fix(0)
 
 # model.initial_inv_frozen_Constraint = Constraint(model.P, rule = initial_inventory_frozen_product)
 # key = 'api_32f781e7-5704-40a4-94ea-e99e314945cf'
@@ -541,7 +538,10 @@ print("solver running")
 # results = solver_manager.solve(model, opt=opt)
 
 # results.write()
-opt = SolverFactory('cplex')
+# opt = SolverFactory('cplex')
+solution = solve_model(model)
+model = solution[0]
+results = solution[1]
 # opt.options["mip_cuts_all"] = 2
 # opt.options["mip_strategy_probe"] = 3
 # opt.options["threads"] = 4
@@ -553,10 +553,9 @@ opt = SolverFactory('cplex')
 # opt.options["timelimit"] = 300
 # opt.options["mip_tolerance_mipgap"] = 0.05
 # opt.options["slog"] = 1
-results = opt.solve(model, tee=True, keepfiles = True)
+# results = opt.solve(model, tee=True, keepfiles = True)
 # model.load(results)
-#
-model.solutions.store_to(results)
+# model.solutions.store_to(results)
 results.write(filename='results.json',format = 'json')
 # print(results)
 # objective_value = results['Solution'][0]['Objective']['OBJ']['Value']
