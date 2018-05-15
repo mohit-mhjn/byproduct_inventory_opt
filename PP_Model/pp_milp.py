@@ -27,27 +27,28 @@ if len(sys.argv) >= 2:
     filename = sys.argv[-2]
     option = sys.argv[-1]
 else:
-    option = sys.argv[-1]
+    option = '1'#sys.argv[-1]
     filename = '/home/nikola/git_projects/imbalance/PP_Model/Model_Input_Final.xlsm'
 print(filename,option)
 print(option)
-demand_fresh = pd.read_excel(filename, sheet_name="Demand_Fresh")
+
+demand_fresh = pd.read_excel(filename,sheet_name="Demand_Fresh")
 demand_fresh = demand_fresh.dropna(axis='columns', how='all')
+demand_fresh = demand_fresh.round(2)
 # demand_fresh_df = pd.DataFrame(0, index=range(1, len(demand_fresh)+1), columns=range(1, len(demand_fresh.loc[0])))
 # for i in range(0, len(demand_fresh)):
 #     for j in range(1, len(demand_fresh.loc[0])):
 #         demand_fresh_df.loc[i+1][j]=demand_fresh.loc[i][j]
 
-
 def df(model, i, j):
     try:
-        return np.nan_to_num(demand_fresh[demand_fresh['item code']==i][j].iloc[0])
+        return round(np.nan_to_num(demand_fresh[demand_fresh['item code']==i][j].iloc[0]),2)
     except IndexError:
         return 0
 
-
 demand_frozen = pd.read_excel(filename, sheet_name="Demand_Frozen")
 demand_frozen = demand_frozen.dropna(axis='columns', how = 'all')
+
 inven = pd.read_excel('Model_Input_Final.xlsm', sheetname="Initial_Inventory")
 data_input = pd.merge(demand_frozen, inven[['item code', 'Initial Inventory']]
                       , left_on=['item code'], right_on=['item code'], how='left')
@@ -64,11 +65,14 @@ for i in days:
             data_input.loc[index, 'Initial Inventory'] = 0
 
 demand_frozen = data_input.dropna()
+demand_frozen = demand_frozen.round(2)
+
 # demand_frozen_dc = pd.DataFrame(0, index=range(1, len(demand_frozen)+1), columns=range(1, len(demand_frozen.loc[0])))
 # for i in range(0, len(demand_frozen)):
 #     for j in range(1, len(demand_frozen.loc[0])):
 #         demand_frozen_dc.loc[i+1][j] = demand_frozen.loc[i][j]
-def convert_fresh(df):
+
+def convert_fresh(df):      #????????????????????????
     l = []
     for f in df['item code']:
         l.append(f[:-1] + 'C')
@@ -83,6 +87,7 @@ def dc(model, i, j):
 ff = pd.read_excel('Model_Input_Final.xlsm', sheet_name="Fresh_Frozen_Relation")
 ff = ff.dropna(axis='columns', how='all')
 ff = ff.astype(str)
+
 for i in demand_frozen['item code'].astype(str).unique():
     if i in ff['Frozen SKU'].astype(str).unique():
         demand_frozen['item code'][demand_frozen.index[demand_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
@@ -102,9 +107,9 @@ def priority_fresh(i):
     except IndexError:
         return 0
 
-
 selling_price_frozen = pd.read_excel(filename, sheet_name='Selling_Price_Frozen')
 selling_price_frozen = selling_price_frozen.dropna(axis='columns', how='all')
+
 for i in selling_price_frozen['item code'].astype(str).unique():
     if i in ff['Frozen SKU'].astype(str).unique():
         selling_price_frozen['item code'][selling_price_frozen.index[selling_price_frozen['item code']==i]]=ff['Fresh SKU'][ff.index[ff['Frozen SKU']==i]]
@@ -224,10 +229,8 @@ def Wc(model):
 # def Te(model):
 #     return common_data["Value"][3]
 
-
 def b(model):
     return common_data["Value"][5]
-
 
 def F(model):
     return float(common_data["Value"][6])
@@ -274,39 +277,31 @@ def t(model,j):
     return float(operational_time.iloc[j-1][1])
 
 
-y = pd.read_excel(filename, sheet_name='Yield',)
-y = y.dropna(axis ='columns', how='all')
+y = pd.read_excel(filename, sheet_name='yield2')
+# y = y[(y.yld > 0)]
+y['yld']= y['yld'].fillna(value=0)
+bird_type = list(set(y["carcasses"]))
+cut_pattern = list(set(y['cutting_pattern']))
+y["yld"] = y["yld"].apply(lambda x: round(x,2))
 y['Marination Yield (%)']=y['Marination Yield (%)'].fillna(value=100)
-# y = y.fillna(0)
-# y = y[y['Run']==1]
-bird_type = y.columns[3:-1]
-cut_pattern = list(set(y['Cutting Pattern']))
-# products = list(i for i in range(1, len(y['item code'].unique())+1))
-# products = np.repeat(products, len(y['Cutting Pattern'].unique()))
-# cut_pattern = list(i for i in range(1, len(y['Cutting Pattern'].unique())+1))
-# cut_pattern = cut_pattern*len(y['item code'].unique())
+y['Marination Yield (%)']=y['Marination Yield (%)'].apply(lambda x: round(x/100,2))
+# y.reset_index(inplace = True, drop = True)
 
-# b_t = list(i for i in range(1, len(y.columns)+1))
-# y.columns = b_t
-products = list(set(demand_fresh['item code']).intersection(set(y['item code'])).union(set(demand_frozen['item code']).intersection(set(y['item code']))))
-# y = y.set_index([products, cut_pattern])
-# del y[1]
-# del y[2]
-# y.columns = range(1, len(y.columns)+1)
-# bird_type = y.columns
-
+products = list(set(demand_fresh['item code']).intersection(set(y['item_code'])).union(set(demand_frozen['item code']).intersection(set(y['item_code']))))
 
 def yd(model, i, j, r):
+    global y
     try:
-        p=np.nan_to_num(float(y[(y['item code']==i) & (y['Cutting Pattern']==j)][r].iloc[0]))*np.nan_to_num(y['Marination Yield (%)'][y['item code']==i])/100
-        return round(p[0],2)
+        p_1= y[(y['item_code']==i) & (y['cutting_pattern']==j) & (y['carcasses'] == r)]
+        p_2 = p_1.iloc[0]['yld']
+        p_3 = p_1.iloc[0]["Marination Yield (%)"]
+        p = p_2*p_3
+        return round(p,2)
     except IndexError:
         return 0
 
-
 bird_type_ratio = pd.read_excel(filename, sheet_name='Bird_Type_Ratio')
 bird_type_ratio = bird_type_ratio.dropna(axis='columns', how='all')
-
 
 def alpha(model, r):
     return round(np.nan_to_num(float(bird_type_ratio[bird_type_ratio['Bird Type']==r]['Ratio'].iloc[0])),2)
@@ -344,14 +339,32 @@ def sum_dc(model, t):
 model.T = Set(initialize=days, ordered=True)     # planning horizon
 model.J = Set(initialize=list(set(cut_pattern)), ordered = True)     # cutting patterns
 model.P = Set(initialize=products, ordered = True)     # products
-model.L = Set(model.P, initialize=L, ordered=True)     # shell life for fresh products
-model.H = Param(model.T, initialize = H)         # min no of avaiable carcasses of type r in all planning horizon
+model.L = Set(model.P, initialize=L, ordered=True)     # shelf life for fresh products
+model.H = Param(model.T, initialize = H)         # max no of avaiable carcasses in all planning horizon
+
 model.K = Set(initialize = sections)             # no of sections
 model.Jk = Set(model.K, initialize = Jk)         # cutting pattern
 model.Jk.pprint()
 model.R = Set(initialize=bird_type, ordered = True)     # type of carcasses
 model.alpha = Param(model.R, initialize = alpha)    # proportion of carcasses of type r
-model.yd = Param(model.P, model.J, model.R, initialize = yd)   # yield of product i in pattern j on carcasses of type r
+
+def dist_H(model,r,t):     # max no of avaiable carcasses of type R in all planning horizon
+    return model.alpha[r]*model.H[t]
+model.HR = Param(model.R, model.T, initialize = dist_H)
+
+# a = sum(model.alpha[k] for k in model.R)
+# print (a)
+
+# def create_index_p_j_r(model):
+#     global y
+#     tpl_set = set()
+#     for indx,row in y.iterrows():
+#         tpl_set.add((row["item_code"],row["cutting_pattern"],row["carcasses"]))
+#     return tpl_set
+# model.indx_p_j_r = Set(dimen = 3, initialize = create_index_p_j_r)
+
+model.yd = Param(model.P, model.J, model.R, initialize = yd)   # yield of product i in pattern j on carcasses of type r      >>>> Can Reduce Params by Mapping Products with Cutting Patterns
+
 model.pf = Param(model.P,initialize = pf)    # SP of fresh product
 model.pc = Param(model.P,initialize = pc)    # SP of frozen product
 model.c = Param(model.J, initialize = c)     # operational cost of pattern j
@@ -366,6 +379,7 @@ model.df = Param(model.P, model.T, initialize = df) # Demand of fresh products
 model.dc = Param(model.P, model.T, initialize = dc) # Demand of frozen products
 model.sum_df = Param(model.T, initialize = sum_df)
 model.sum_dc = Param(model.T, initialize = sum_dc)
+
 model.tau = Param(initialize = 0)         # Freezing Process duration
 model.Wf = Param(initialize = Wf)     # warehouse capacity
 model.Wc = Param(initialize = Wc)     # warehouse capacity
@@ -378,20 +392,44 @@ model.Ld = Set(model.P, initialize = Ld, ordered = True)
 # td = list(range((days[0]-shelf_life), 1)) + days + list(range(days[-1]+1, days[-1]+shelf_life+1))
 td = [0]+days+[5]
 model.Td = Set(initialize=td, ordered=True)
+
+
 model.x = Var(model.P, model.T, domain=NonNegativeReals)   # total quantity of product i to be processed in period t
 model.xf = Var(model.P, model.Td, model.Td, domain=NonNegativeReals)        # quantity of fresh product i to process in period t to be sold at t'
-model.z = Var(model.J, model.R, model.T, domain=NonNegativeIntegers)   # no of times to use pattern j on carcass r in period t in RT
-model.ze = Var(model.J, model.R, model.T, domain=NonNegativeIntegers)    # no of times to use pattern j on carcass r in period t in OT
 model.xc = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of frozen product i to process in t
+
+#j_r combination
+# def create_j_r_indx(model):
+#     tpl_set = set()
+#     for i in model.indx_p_j_r:
+#         tpl_set.add((i[1],i[2]))
+#     return tpl_set
+# model.indx_j_r = Set(dimen = 2,initialize = create_j_r_indx)
+
+model.z = Var(model.J, model.R , model.T, domain=NonNegativeIntegers)   # no of times to use pattern j on carcass r in period t in RT
+model.ze = Var(model.J, model.R , model.T, domain=NonNegativeIntegers)    # no of times to use pattern j on carcass r in period t in OT
+
 model.vf = Var(model.P, model.T, domain=NonNegativeReals)        # quantity of fresh product i to be sold in t
 model.vc = Var(model.P, model.T, domain=NonNegativeReals)        # quantity of frozen product i to be sold in t
+
 model.Ic = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of frozen product i to hold in t
+
 model.uf = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of fresh product i in t
 model.uc = Var(model.P, model.T, domain=NonNegativeReals)        # unsatisfied demand of frozen product i in t
-model.HA = Var(model.T, domain=NonNegativeIntegers)         # No of carcasses to be processed in period t
+
+model.HA = Var(model.R, model.T,domain=NonNegativeIntegers)         # No of carcasses of Type R to be processed in period t
+
 model.yc = Var(model.P, model.T, domain=Binary)
 model.yf = Var(model.P, model.T, domain=Binary)
+
 print("model input done")
+
+# Which Scenario to Which number?
+#1 Max Profit
+#2 100% Satisfaction
+#3 Customer Priority
+
+dct = {'1':maximize,'2':minimize,'3':maximize}
 
 def objective_function(model):
     if option == '1':
@@ -404,25 +442,28 @@ def objective_function(model):
         # return sum(sum(priority_fresh(i)*model.uf[i, t] + priority_frozen(i)*model.uc[i, t] for i in model.P) for t in model.T)
         return sum(sum(model.Ic[i, t] for i in model.P) for t in model.Td)# + sum(model.HA[t] for t in model.T)#+ sum(sum(sum(model.z[j,r,t] + model.ze[j,r,t] for j in model.J ) for r in model.R ) for t in model.T)
         # return sum(sum(((priority_fresh(i)**5))*(model.df[i, t] **2)*model.vf[i, t] + ((priority_frozen(i)**5))*(model.dc[i,t]**2)*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T)
-model.OBJ = Objective(rule = objective_function, sense = maximize)
+model.OBJ = Objective(rule = objective_function, sense = dct[option])
 
-model.Kd = Set(initialize=RangeSet(3))
-def carcass_availability(model, r, t, k):
-    # print(sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k] if j ==1) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4] if j ==1)+sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]  if j ==1) == model.alpha[r]*model.HA[t])
-    return sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]) == model.alpha[r]*model.HA[t]
-model.A2Constraint = Constraint(model.R, model.T, model.Kd,  rule = carcass_availability)
+model.Kd = Set(initialize=RangeSet(3))  #>> Set of Non Whole Bird Entities (sections)
 
-def carcass_limit(model, t):
-    return model.HA[t] <= model.H[t]
-model.A3Constraint = Constraint(model.T,rule = carcass_limit)
+model.Q_nw = Var(model.R, model.T, domain = NonNegativeReals)   # quantity of non-whole bird entities processed
 
-def carcass_limit_lower(model, t):
-    return 0.3*model.H[t] <= model.HA[t]
-# model.carcass_limit_constraint = Constraint(model.T, rule= carcass_limit_lower)
+def non_whole_bird_processed(model,r,t,k):
+    return sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k]) == model.Q_nw[r,t]
+model.A0Constraint = Constraint(model.R, model.T, model.Kd, rule = non_whole_bird_processed)
+
+def carcass_availability(model,r,t):
+    return model.Q_nw[r,t] + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]) == model.HA[r,t]
+model.A2Constraint = Constraint(model.R, model.T, rule = carcass_availability)
+
+def carcass_limit(model,r,t):
+    return model.HA[r,t] <= model.HR[r,t]
+model.A3Constraint = Constraint(model.R, model.T,rule = carcass_limit)
+
 lis =  [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 1, 2, 3, 4, 35, 36, 5]
 
 def cutting_pattern_gen(model,i,t):
-    return model.x[i,t] <= sum(model.yd[i,j,r] * (model.z[j,r,t] + model.ze[j,r,t]) for j in lis for r in model.R)
+    return model.x[i,t] == sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for j in lis for r in model.R)
 model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern_gen)
 
 def available_daily_wh(model,t):
@@ -434,35 +475,35 @@ def available_daily_ot(model,t):
 model.A6Constraint = Constraint(model.T, rule = available_daily_ot)
 
 def fresh_frozen_balance(model,i,t):
-    return model.x[i,t] >= sum(model.xf[i,t,t+l] for l in model.Ld[i] if t+l <=last_day) + model.xc[i,t]
+    return model.x[i,t] == sum(model.xf[i,t,t+l] for l in model.Ld[i] if t+l <=last_day) + model.xc[i,t]
 model.A7Constraint = Constraint(model.P, model.T, rule = fresh_frozen_balance)
 
 def fresh_product_sold(model,i,t):
-        return model.vf[i,t] <= sum(model.xf[i,t-l,t] for l in model.Ld[i] if t-l > 0)
+    return model.vf[i,t] == sum(model.xf[i,t-l,t] for l in model.Ld[i] if t-l > 0)
 model.A8Constraint = Constraint(model.P, model.T, rule = fresh_product_sold)
 
 def frozen_product_sold(model,i,t):
-        return model.vc[i,t] <= model.Ic[i,t-1] + model.xc[i,t-model.tau] - model.Ic[i,t]
+    return model.vc[i,t] == model.Ic[i,t-1] + model.xc[i,t-model.tau] - model.Ic[i,t]
 model.A9Constraint = Constraint(model.P,model.T, rule = frozen_product_sold)
 
 def demand_frozen_product(model, i, t):
-        return model.vc[i,t] + model.uc[i,t] == model.dc[i,t]
+    return model.vc[i,t] + model.uc[i,t] == model.dc[i,t]
 model.A10Constraint = Constraint(model.P, model.T, rule = demand_frozen_product)
 
 def demand_fresh_product (model,i, t):
-        return model.vf[i,t] + model.uf[i,t] == model.df[i,t]
+    return model.vf[i,t] + model.uf[i,t] == model.df[i,t]
 model.A11Constraint = Constraint(model.P, model.T,  rule = demand_fresh_product)
 
 def unsatisfied_fresh(model,i ,t):
     # if priority_fresh(i) == 3:
-        return model.uc[i,t] == 0
+        return model.uc[i,t] <= 0
     # else:
     #     return Constraint.Skip
 # model.unsatisfied_fresh = Constraint(model.P, model.T, rule = unsatisfied_fresh)
 
 def unsatisfied_frozen(model, i, t):
     # if priority_frozen(i) == 3:
-        return model.uf[i, t] == 0
+        return model.uf[i, t] <= 0
     # else:
     #     return Constraint.Skip
 # model.unsatisfied_frozen = Constraint(model.P, model.T, rule = unsatisfied_frozen)
@@ -511,7 +552,7 @@ model.indicator_frozen_Constraint = Constraint(model.P, model.T, rule=indicator_
 # doc = DOcloud(base_url, key, verbose=True)
 # model.symbolic_solver_labels = True
 # model = model.write('imbalanced_part.lp',io_options={"symbolic_solver_labels": True})
-#
+
 # import glob
 # file = glob.glob('imbalanced_part.lp')
 # client = JobClient(base_url, key)
@@ -536,7 +577,7 @@ print("solver running")
 # solver_manager = SolverManagerFactory('neos')
 #
 # results = solver_manager.solve(model, opt=opt)
-
+exit()
 # results.write()
 # opt = SolverFactory('cplex')
 solution = solve_model(model)
