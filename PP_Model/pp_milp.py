@@ -338,6 +338,7 @@ def sum_dc(model, t):
 
 model.T = Set(initialize=days, ordered=True)     # planning horizon
 model.J = Set(initialize=list(set(cut_pattern)), ordered = True)     # cutting patterns
+model.J.pprint()
 model.P = Set(initialize=products, ordered = True)     # products
 model.L = Set(model.P, initialize=L, ordered=True)     # shelf life for fresh products
 model.H = Param(model.T, initialize = H)         # max no of avaiable carcasses in all planning horizon
@@ -355,13 +356,16 @@ model.HR = Param(model.R, model.T, initialize = dist_H)
 # a = sum(model.alpha[k] for k in model.R)
 # print (a)
 
-# def create_index_p_j_r(model):
-#     global y
-#     tpl_set = set()
-#     for indx,row in y.iterrows():
-#         tpl_set.add((row["item_code"],row["cutting_pattern"],row["carcasses"]))
-#     return tpl_set
-# model.indx_p_j_r = Set(dimen = 3, initialize = create_index_p_j_r)
+def create_index_p_j_r(model):
+    global y
+    tpl_set = set()
+    for indx,row in y.iterrows():
+        if row["yld"] > 0:
+            tpl_set.add((row["item_code"],row["cutting_pattern"],row["carcasses"]))
+        else:
+            pass
+    return tpl_set
+model.indx_p_j_r = Set(dimen = 3, initialize = create_index_p_j_r)
 
 model.yd = Param(model.P, model.J, model.R, initialize = yd)   # yield of product i in pattern j on carcasses of type r      >>>> Can Reduce Params by Mapping Products with Cutting Patterns
 
@@ -399,12 +403,22 @@ model.xf = Var(model.P, model.Td, model.Td, domain=NonNegativeReals)        # qu
 model.xc = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of frozen product i to process in t
 
 #j_r combination
-# def create_j_r_indx(model):
-#     tpl_set = set()
-#     for i in model.indx_p_j_r:
-#         tpl_set.add((i[1],i[2]))
-#     return tpl_set
-# model.indx_j_r = Set(dimen = 2,initialize = create_j_r_indx)
+product_j_r_map = {(j,r):[] for j in model.J for r in model.R}
+j_r_product = {i:[] for i in model.P}
+
+def create_j_r_indx(model):
+    global product_j_r_map
+    global j_r_product
+    tpl_set = set()
+    for i in model.indx_p_j_r:
+        if i[0] in model.P:
+            tpl_set.add((i[1],i[2]))
+            product_j_r_map[(i[1],i[2])].append(i[0])
+            j_r_product[i[0]].append((i[1],i[2]))
+        else:
+            pass
+    return tpl_set
+model.indx_j_r = Set(dimen = 2,initialize = create_j_r_indx)
 
 model.z = Var(model.J, model.R , model.T, domain=NonNegativeIntegers)   # no of times to use pattern j on carcass r in period t in RT
 model.ze = Var(model.J, model.R , model.T, domain=NonNegativeIntegers)    # no of times to use pattern j on carcass r in period t in OT
@@ -460,11 +474,15 @@ def carcass_limit(model,r,t):
     return model.HA[r,t] <= model.HR[r,t]
 model.A3Constraint = Constraint(model.R, model.T,rule = carcass_limit)
 
-lis =  [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 1, 2, 3, 4, 35, 36, 5]
-
 def cutting_pattern_gen(model,i,t):
-    return model.x[i,t] == sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for j in lis for r in model.R)
+    global j_r_product
+    return model.x[i,t] <= sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for j,r in j_r_product[i])
 model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern_gen)
+
+def cutting_pattern_gen2(model,j,r,t):
+    global product_j_r_map
+    return sum(model.x[i,t] for i in product_j_r_map[(j,r)]) >= sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for i in model.P)
+model.A41Constraint = Constraint(model.indx_j_r, model.T,rule = cutting_pattern_gen2)
 
 def available_daily_wh(model,t):
     return sum(sum(model.z[j,r,t]* model.t[j] for j in model.J) for r in model.R) <= model.Ta[t]
@@ -486,9 +504,9 @@ def frozen_product_sold(model,i,t):
     return model.vc[i,t] == model.Ic[i,t-1] + model.xc[i,t-model.tau] - model.Ic[i,t]
 model.A9Constraint = Constraint(model.P,model.T, rule = frozen_product_sold)
 
-def demand_frozen_product(model, i, t):
-    return model.vc[i,t] + model.uc[i,t] == model.dc[i,t]
-model.A10Constraint = Constraint(model.P, model.T, rule = demand_frozen_product)
+# def demand_frozen_product(model, i, t):
+#     return model.vc[i,t] + model.uc[i,t] == model.dc[i,t]
+# model.A10Constraint = Constraint(model.P, model.T, rule = demand_frozen_product)
 
 def demand_fresh_product (model,i, t):
     return model.vf[i,t] + model.uf[i,t] == model.df[i,t]
@@ -577,7 +595,6 @@ print("solver running")
 # solver_manager = SolverManagerFactory('neos')
 #
 # results = solver_manager.solve(model, opt=opt)
-exit()
 # results.write()
 # opt = SolverFactory('cplex')
 solution = solve_model(model)

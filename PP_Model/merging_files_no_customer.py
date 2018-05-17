@@ -3,6 +3,10 @@ import numpy as np
 import pandas as pd
 import os
 
+directory = os.path.dirname(os.path.abspath(__file__))
+os.chdir(directory)
+
+
 def convert(df):
     l = []
     for f in df['item_code']:
@@ -213,4 +217,3 @@ df_final['Priority'] = df_final['Priority'].fillna(2)
 df_final.columns =  ['Products','ProdType','keyfigure','Days','Value', 'Priority']
 
 df_final.to_csv("Dashboard.csv",index=False)
-

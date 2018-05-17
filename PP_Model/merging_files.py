@@ -3,6 +3,9 @@
 import pandas as pd
 import os
 
+directory = os.path.dirname(os.path.abspath(__file__))
+os.chdir(directory)
+
 #1. Fresh sold
 fresh_sold = pd.read_csv('Fresh_Product_Sold.csv')
 fresh_sold['keyfigure'] = "fresh_sold"
@@ -107,6 +110,3 @@ satisfied_frozen['Products'] = unsatisfied_frozen['Products']
 satisfied_frozen['keyfigure'] = 'satisfied_frozen'
 df_final = pd.concat([fresh_sold,frozen_sold,unsatisfied_fresh,unsatisfied_frozen,production,frozen_production,frozen_inventory,demand_fresh,demand_frozen,satisfied_fresh,satisfied_frozen,bird_count],axis=0)
 df_final.to_csv("Dashboard.csv")
-
-
-
