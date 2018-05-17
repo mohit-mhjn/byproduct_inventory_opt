@@ -403,8 +403,9 @@ model.xf = Var(model.P, model.Td, model.Td, domain=NonNegativeReals)        # qu
 model.xc = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of frozen product i to process in t
 
 #j_r combination
-product_j_r_map = {(j,r):[] for j in model.J for r in model.R}
-j_r_product = {i:[] for i in model.P}
+product_j_r_map = {(j,r):set() for j in model.J for r in model.R}
+j_r_product = {i:set() for i in model.P}
+j_pr = {j:set() for j in model.J}
 
 def create_j_r_indx(model):
     global product_j_r_map
@@ -413,8 +414,9 @@ def create_j_r_indx(model):
     for i in model.indx_p_j_r:
         if i[0] in model.P:
             tpl_set.add((i[1],i[2]))
-            product_j_r_map[(i[1],i[2])].append(i[0])
-            j_r_product[i[0]].append((i[1],i[2]))
+            product_j_r_map[(i[1],i[2])].add(i[0])
+            j_r_product[i[0]].add((i[1],i[2]))
+            j_pr[i[1]].add((i[0],i[2]))
         else:
             pass
     return tpl_set
@@ -454,8 +456,8 @@ def objective_function(model):
                - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T)# - sum(sum( model.yc[i, t] - model.yf[i, t] for i in model.P) for t in model.T)
     else:
         # return sum(sum(priority_fresh(i)*model.uf[i, t] + priority_frozen(i)*model.uc[i, t] for i in model.P) for t in model.T)
-        return sum(sum(model.Ic[i, t] for i in model.P) for t in model.Td)# + sum(model.HA[t] for t in model.T)#+ sum(sum(sum(model.z[j,r,t] + model.ze[j,r,t] for j in model.J ) for r in model.R ) for t in model.T)
-        # return sum(sum(((priority_fresh(i)**5))*(model.df[i, t] **2)*model.vf[i, t] + ((priority_frozen(i)**5))*(model.dc[i,t]**2)*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T)
+        return sum(model.HA[r,t] for r in model.R for t in model.T) #+ sum(sum(sum(model.z[j,r,t] + model.ze[j,r,t] for j in model.J ) for r in model.R ) for t in model.T)
+        # return sum(sum(((priority_fresh(i)**5))*(model.df[i, t] **2)*model.vf[i, t] + sum(sum(model.Ic[i, t] for i in model.P) for t in model.Td)# ((priority_frozen(i)**5))*(model.dc[i,t]**2)*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T)
 model.OBJ = Objective(rule = objective_function, sense = dct[option])
 
 model.Kd = Set(initialize=RangeSet(3))  #>> Set of Non Whole Bird Entities (sections)
@@ -467,22 +469,31 @@ def non_whole_bird_processed(model,r,t,k):
 model.A0Constraint = Constraint(model.R, model.T, model.Kd, rule = non_whole_bird_processed)
 
 def carcass_availability(model,r,t):
-    return model.Q_nw[r,t] + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]) == model.HA[r,t]
+    return model.Q_nw[r,t] + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[5]) + sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[4])  == model.HA[r,t]
 model.A2Constraint = Constraint(model.R, model.T, rule = carcass_availability)
 
 def carcass_limit(model,r,t):
     return model.HA[r,t] <= model.HR[r,t]
 model.A3Constraint = Constraint(model.R, model.T,rule = carcass_limit)
 
-def cutting_pattern_gen(model,i,t):
-    global j_r_product
-    return model.x[i,t] <= sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for j,r in j_r_product[i])
-model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern_gen)
+# def cutting_pattern_gen(model,i,t):
+#     global j_r_product
+#     return model.x[i,t] <= sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for j,r in j_r_product[i])
+# model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern_gen)
+# model.A4Constraint.pprint()
 
-def cutting_pattern_gen2(model,j,r,t):
-    global product_j_r_map
-    return sum(model.x[i,t] for i in product_j_r_map[(j,r)]) >= sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for i in model.P)
-model.A41Constraint = Constraint(model.indx_j_r, model.T,rule = cutting_pattern_gen2)
+def cutting_pattern_gen2(model,j,t):
+    global j_pr
+    R_set = set(r for i,r in j_pr[j])
+    I_set = set(i for i,r in j_pr[j])
+    if not R_set:
+        return Constraint.Skip
+    if not I_set:
+        return Constraint.Skip
+    return sum(model.x[i,t] for i in I_set) <= sum((model.z[j,r,t] + model.ze[j,r,t]) for r in R_set)
+model.A41Constraint = Constraint(model.J, model.T, rule = cutting_pattern_gen2)
+#* for i in product_j_r_map[(j,r)] /
+#*model.yd[i,j,r] /model.yd[i,j,r]
 
 def available_daily_wh(model,t):
     return sum(sum(model.z[j,r,t]* model.t[j] for j in model.J) for r in model.R) <= model.Ta[t]
@@ -504,9 +515,9 @@ def frozen_product_sold(model,i,t):
     return model.vc[i,t] == model.Ic[i,t-1] + model.xc[i,t-model.tau] - model.Ic[i,t]
 model.A9Constraint = Constraint(model.P,model.T, rule = frozen_product_sold)
 
-# def demand_frozen_product(model, i, t):
-#     return model.vc[i,t] + model.uc[i,t] == model.dc[i,t]
-# model.A10Constraint = Constraint(model.P, model.T, rule = demand_frozen_product)
+def demand_frozen_product(model, i, t):
+    return model.vc[i,t] + model.uc[i,t] == model.dc[i,t]
+model.A10Constraint = Constraint(model.P, model.T, rule = demand_frozen_product)
 
 def demand_fresh_product (model,i, t):
     return model.vf[i,t] + model.uf[i,t] == model.df[i,t]
@@ -517,14 +528,14 @@ def unsatisfied_fresh(model,i ,t):
         return model.uc[i,t] <= 0
     # else:
     #     return Constraint.Skip
-# model.unsatisfied_fresh = Constraint(model.P, model.T, rule = unsatisfied_fresh)
+model.unsatisfied_fresh = Constraint(model.P, model.T, rule = unsatisfied_fresh)
 
 def unsatisfied_frozen(model, i, t):
     # if priority_frozen(i) == 3:
         return model.uf[i, t] <= 0
     # else:
     #     return Constraint.Skip
-# model.unsatisfied_frozen = Constraint(model.P, model.T, rule = unsatisfied_frozen)
+model.unsatisfied_frozen = Constraint(model.P, model.T, rule = unsatisfied_frozen)
 
 def freezing_capacity(model, t):
     return sum(sum(model.xc[i,t] for t in range(t-model.tau, t+1) if t >0 )for i in model.P) <= model.F
@@ -615,7 +626,8 @@ results = solution[1]
 # model.load(results)
 # model.solutions.store_to(results)
 results.write(filename='results.json',format = 'json')
-# print(results)
+print(results)
+exit()
 # objective_value = results['Solution'][0]['Objective']['OBJ']['Value']
 df = pd.read_excel(filename, sheet_name="Demand_Fresh")
 df = df.dropna(axis='columns', how='all')
