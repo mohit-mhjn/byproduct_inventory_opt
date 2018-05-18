@@ -397,26 +397,28 @@ model.Ld = Set(model.P, initialize = Ld, ordered = True)
 td = [0]+days+[5]
 model.Td = Set(initialize=td, ordered=True)
 
-
+model.xr = Var(model.P,model.R, model.T, domain=NonNegativeReals)
+model.xjr = Var(model.P, model.J, model.R, model.T, domain=NonNegativeReals)
 model.x = Var(model.P, model.T, domain=NonNegativeReals)   # total quantity of product i to be processed in period t
 model.xf = Var(model.P, model.Td, model.Td, domain=NonNegativeReals)        # quantity of fresh product i to process in period t to be sold at t'
 model.xc = Var(model.P, model.Td, domain=NonNegativeReals)        # quantity of frozen product i to process in t
 
 #j_r combination
-product_j_r_map = {(j,r):set() for j in model.J for r in model.R}
-j_r_product = {i:set() for i in model.P}
-j_pr = {j:set() for j in model.J}
+jr_to_sku_map = {(j,r):set() for j in model.J for r in model.R}
+sku_to_jr_map = {i:set() for i in model.P}
+j_to_rsku_map = {j:set() for j in model.J}
 
 def create_j_r_indx(model):
-    global product_j_r_map
-    global j_r_product
+    global jr_to_sku_map
+    global sku_to_jr_map
+    global j_to_rsku_map
     tpl_set = set()
     for i in model.indx_p_j_r:
         if i[0] in model.P:
             tpl_set.add((i[1],i[2]))
-            product_j_r_map[(i[1],i[2])].add(i[0])
-            j_r_product[i[0]].add((i[1],i[2]))
-            j_pr[i[1]].add((i[0],i[2]))
+            jr_to_sku_map[(i[1],i[2])].add(i[0])
+            sku_to_jr_map[i[0]].add((i[1],i[2]))
+            j_to_rsku_map[i[1]].add((i[0],i[2]))
         else:
             pass
     return tpl_set
@@ -476,24 +478,15 @@ def carcass_limit(model,r,t):
     return model.HA[r,t] <= model.HR[r,t]
 model.A3Constraint = Constraint(model.R, model.T,rule = carcass_limit)
 
-# def cutting_pattern_gen(model,i,t):
-#     global j_r_product
-#     return model.x[i,t] <= sum(model.yd[i,j,r]*(model.z[j,r,t] + model.ze[j,r,t]) for j,r in j_r_product[i])
-# model.A4Constraint = Constraint(model.P, model.T, rule = cutting_pattern_gen)
-# model.A4Constraint.pprint()
+def cutting_pattern_gen(model,i,t):
+    global sku_to_jr_map
+    return model.x[i,t] == sum(model.xjr[i,j,r,t] for j,r in sku_to_jr_map[i])
+model.A4 = Constraint(model.P, model.T, rule = cutting_pattern_gen)
 
-def cutting_pattern_gen2(model,j,t):
-    global j_pr
-    R_set = set(r for i,r in j_pr[j])
-    I_set = set(i for i,r in j_pr[j])
-    if not R_set:
-        return Constraint.Skip
-    if not I_set:
-        return Constraint.Skip
-    return sum(model.x[i,t] for i in I_set) <= sum((model.z[j,r,t] + model.ze[j,r,t]) for r in R_set)
-model.A41Constraint = Constraint(model.J, model.T, rule = cutting_pattern_gen2)
-#* for i in product_j_r_map[(j,r)] /
-#*model.yd[i,j,r] /model.yd[i,j,r]
+def cutting_pattern_gen2(model,j,r,t):
+    global jr_to_sku_map
+    return sum(model.xjr[i,j,r,t]/model.yd[i,j,r] for i in jr_to_sku_map[(j,r)])  == model.z[j,r,t] + model.ze[j,r,t]
+model.A41 = Constraint(model.J,model.R, model.T, rule = cutting_pattern_gen2)
 
 def available_daily_wh(model,t):
     return sum(sum(model.z[j,r,t]* model.t[j] for j in model.J) for r in model.R) <= model.Ta[t]
