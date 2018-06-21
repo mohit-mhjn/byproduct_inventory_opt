@@ -49,7 +49,7 @@ def df(model, i, j):
 demand_frozen = pd.read_excel(filename, sheet_name="Demand_Frozen")
 demand_frozen = demand_frozen.dropna(axis='columns', how = 'all')
 
-inven = pd.read_excel('Model_Input_Final.xlsm', sheetname="Initial_Inventory")
+inven = pd.read_excel(filename, sheetname="Initial_Inventory")
 data_input = pd.merge(demand_frozen, inven[['item code', 'Initial Inventory']]
                       , left_on=['item code'], right_on=['item code'], how='left')
 
@@ -84,7 +84,7 @@ def dc(model, i, j):
     except IndexError:
         return 0
 
-ff = pd.read_excel('Model_Input_Final.xlsm', sheet_name="Fresh_Frozen_Relation")
+ff = pd.read_excel(filename, sheet_name="Fresh_Frozen_Relation")
 ff = ff.dropna(axis='columns', how='all')
 ff = ff.astype(str)
 
@@ -276,7 +276,6 @@ operational_time = operational_time.dropna(axis ='columns', how = 'all')
 def t(model,j):
     return float(operational_time.iloc[j-1][1])
 
-
 y = pd.read_excel(filename, sheet_name='yield2')
 # y = y[(y.yld > 0)]
 y['yld']= y['yld'].fillna(value=0)
@@ -397,7 +396,6 @@ model.Ld = Set(model.P, initialize = Ld, ordered = True)
 td = [0]+days+[5]
 model.Td = Set(initialize=td, ordered=True)
 
-model.xr = Var(model.P,model.R, model.T, domain=NonNegativeReals)
 model.xjr = Var(model.P, model.J, model.R, model.T, domain=NonNegativeReals)
 model.x = Var(model.P, model.T, domain=NonNegativeReals)   # total quantity of product i to be processed in period t
 model.xf = Var(model.P, model.Td, model.Td, domain=NonNegativeReals)        # quantity of fresh product i to process in period t to be sold at t'
@@ -462,12 +460,24 @@ def objective_function(model):
         # return sum(sum(((priority_fresh(i)**5))*(model.df[i, t] **2)*model.vf[i, t] + sum(sum(model.Ic[i, t] for i in model.P) for t in model.Td)# ((priority_frozen(i)**5))*(model.dc[i,t]**2)*model.vc[i, t] for i in model.P) for t in model.T) - sum(sum(model.hc[i]*model.Ic[i, t] for i in model.P) for t in model.T)
 model.OBJ = Objective(rule = objective_function, sense = dct[option])
 
+def Cuttingpattersection(model,a):
+    if a in list(model.Jk[4]) + list(model.Jk[5]):
+        return [1,2,3]
+    else:
+        if a in model.Jk[1]:
+            return [1]
+        elif a in model.Jk[2]:
+            return [2]
+        else:
+            return [3]
+model.Kj = Set(model.J, initialize = Cuttingpattersection)
+
 model.Kd = Set(initialize=RangeSet(3))  #>> Set of Non Whole Bird Entities (sections)
 
 model.Q_nw = Var(model.R, model.T, domain = NonNegativeReals)   # quantity of non-whole bird entities processed
 
 def non_whole_bird_processed(model,r,t,k):
-    return sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k]) == model.Q_nw[r,t]
+    return sum(model.z[j,r,t] + model.ze[j, r, t] for j in model.Jk[k]) == model.Q_nw1[r,t]
 model.A0Constraint = Constraint(model.R, model.T, model.Kd, rule = non_whole_bird_processed)
 
 def carcass_availability(model,r,t):
@@ -478,15 +488,26 @@ def carcass_limit(model,r,t):
     return model.HA[r,t] <= model.HR[r,t]
 model.A3Constraint = Constraint(model.R, model.T,rule = carcass_limit)
 
+########################################################
+
 def cutting_pattern_gen(model,i,t):
     global sku_to_jr_map
-    return model.x[i,t] == sum(model.xjr[i,j,r,t] for j,r in sku_to_jr_map[i])
+    return model.x[i,t] == sum(model.xjr[i,j,k,r,t] for j,k,r in sku_to_jr_map[i])
 model.A4 = Constraint(model.P, model.T, rule = cutting_pattern_gen)
+
+#x[i,j,r,k,t]
+# Prepare Yield Sheet for J<K<R Index defining an SKU f=coming form section A
+#what if sku i is mapped with multiple k
+# X1 = [1]
+# X2 = [1,2,3]
 
 def cutting_pattern_gen2(model,j,r,t):
     global jr_to_sku_map
     return sum(model.xjr[i,j,r,t]/model.yd[i,j,r] for i in jr_to_sku_map[(j,r)])  == model.z[j,r,t] + model.ze[j,r,t]
-model.A41 = Constraint(model.J,model.R, model.T, rule = cutting_pattern_gen2)
+model.A41 = Constraint(model.J,model.R, model.T,model.S ,rule = cutting_pattern_gen2)
+# Make model.J indexed with Kj so that give J, Kj Combinations
+
+########################################################
 
 def available_daily_wh(model,t):
     return sum(sum(model.z[j,r,t]* model.t[j] for j in model.J) for r in model.R) <= model.Ta[t]
@@ -553,13 +574,13 @@ def initial_inventory(model,i):
         return model.Ic[i, 0] == 0
 model.initial_inv_Constraint = Constraint(model.P, rule = initial_inventory)
 
-def indicator_fresh(model, i, t):
-    return model.uc[i, t] - model.yc[i, t]* model.sum_dc[t] <= 0
-model.indicator_fresh_Constraint = Constraint(model.P, model.T, rule=indicator_fresh)
-
-def indicator_frozen(model, i, t):
-    return model.uf[i, t] - model.yf[i, t]*model.sum_df[t] <= 0
-model.indicator_frozen_Constraint = Constraint(model.P, model.T, rule=indicator_frozen)
+# def indicator_fresh(model, i, t):
+#     return model.uc[i, t] - model.yc[i, t]* model.sum_dc[t] <= 0
+# model.indicator_fresh_Constraint = Constraint(model.P, model.T, rule=indicator_fresh)
+#
+# def indicator_frozen(model, i, t):
+#     return model.uf[i, t] - model.yf[i, t]*model.sum_df[t] <= 0
+# model.indicator_frozen_Constraint = Constraint(model.P, model.T, rule=indicator_frozen)
 
 # def initial_inventory_frozen_product(model,i):
 # for i in model.P:
@@ -604,6 +625,7 @@ print("solver running")
 solution = solve_model(model)
 model = solution[0]
 results = solution[1]
+print (results)
 # opt.options["mip_cuts_all"] = 2
 # opt.options["mip_strategy_probe"] = 3
 # opt.options["threads"] = 4
@@ -619,7 +641,6 @@ results = solution[1]
 # model.load(results)
 # model.solutions.store_to(results)
 results.write(filename='results.json',format = 'json')
-print(results)
 exit()
 # objective_value = results['Solution'][0]['Objective']['OBJ']['Value']
 df = pd.read_excel(filename, sheet_name="Demand_Fresh")

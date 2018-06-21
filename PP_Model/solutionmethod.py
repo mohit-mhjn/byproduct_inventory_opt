@@ -15,8 +15,8 @@ def solve_model(model):       # Custom Solve Method
     mip_gap = 0
     solver_timeout = 300
     number_of_trials = 1
-    solver_sh = 'cplex'     #initialization Setting
-    engage_neos = True  #initialization Setting
+    solver_sh = 'cbc'     #initialization Setting
+    engage_neos = False  #initialization Setting
     j = 1
     timeout_arguments = {'cplex':'timelimit','cbc':'sec'}
     gap_arguments = {'cplex':'mipgap','cbc':'ratio'}   # Cplex Local Executable Take : "mip_tolerance_mipgap", mipgap is for neos version
