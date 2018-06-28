@@ -7,4 +7,5 @@ for k in a:
         my_set.add(int(a0))
     print (my_set)
     a_global.add(list(my_set))
-    
+
+pandas.DataFrame(list(itertools.product(range(0,10),k1,k2)))

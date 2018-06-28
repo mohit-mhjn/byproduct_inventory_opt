@@ -122,6 +122,12 @@ def pgroup_p(model,i):
     return set(df_temp['item_code'])
 model.Pn = Set(model.PG, initialize = pgroup_p)
 
+def p_pgroup(model,i):
+    global y
+    df_temp = y[(y.item_code == i)]
+    return [df_temp.iloc[0]['product_group']]
+model.PGn = Set(model.P, initialize = p_pgroup)
+
 def section_p(model,k):         # Collects SKU's Falling under each section
     global y
     df_tmp = y[y.section.map(set([k]).issubset)]
@@ -145,14 +151,14 @@ model.indx_i_j_r = Set(dimen = 3, initialize = indx_i_j_r_gen)
 def yd_gen(model,i,j,r):
     global y
     df_temp = y[(y.item_code == i) & (y.cutting_pattern == j) & (y.carcass == r)]
-    return df_temp.iloc[0]['yield_p']
+    return df_temp.iloc[0]['yield_p']*df_temp.iloc[0]['n_parts']
 model.yd = Param(model.indx_i_j_r, initialize = yd_gen)
 
-def demand_fresh_gen(model,p,t):
+def demand_fresh_gen(model,t,i):
     global demand_fresh
-    df_temp = float(demand_fresh[(demand_fresh.item_code) == p].iloc[0][t])
+    df_temp = float(demand_fresh[(demand_fresh.item_code) == i].iloc[0][t])
     return df_temp
-model.df = Param(model.P,model.T, initialize = demand_fresh_gen) #Demand of fresh products
+model.df = Param(model.T,model.P, initialize = demand_fresh_gen) #Demand of fresh products
 
 sku_to_jr_map = {i:set() for i in model.P}
 jr_to_sku_map = {(j,r):set() for j in model.J for r in model.R}
@@ -175,6 +181,7 @@ def indx_r_k_j_gen(model):
             my_set.add((rn,k,j0))
     return my_set
 model.indx_r_k_j = Set(dimen = 3, initialize = indx_r_k_j_gen)
+
 ############# Variable Definition  ######################################
 
 model.z = Var(model.T, model.R, domain=NonNegativeIntegers)   # no of carcass r processed in period T
@@ -240,9 +247,9 @@ def map_k_j_to_pg(model):
     return my_set
 model.indx_r_k_j_pg = Set(dimen = 4, initialize = map_k_j_to_pg)
 
-model.Jpg1.pprint()
-model.Jpg2.pprint()
-model.Pn.pprint()
+# model.Jpg1.pprint()
+# model.Jpg2.pprint()
+# model.Pn.pprint()
 
 def sku_conversion(model,t,r,k,j,pg):
     all_items = jr_to_sku_map[(j,r)]
@@ -258,7 +265,7 @@ def sku_conversion(model,t,r,k,j,pg):
         items2 = all_items.intersection(my_set)
     items_req = items1.union(items2)
     if not items_req:
-        print ("skipped for:", (r,k,j,pg))
+        # print ("skipped for:", (r,k,j,pg))
         return Constraint.Skip
     return model.zkj[t,r,k,j] == sum(model.xjr[t,i,r,j]/model.yd[i,j,r] for i in items_req)
 model.A7Constraint = Constraint(model.T, model.indx_r_k_j_pg, rule = sku_conversion)
@@ -267,18 +274,34 @@ def obj(model):
     return sum(model.z[t,r] for t in model.T for r in model.R)
 model.objctve = Objective(rule = obj, sense = minimize)
 
-def force(model):
-    return model.xjr[1,'CTH013160K02DC',1.85,1] >= 10
-model.cons = Constraint(rule = force)
+def demand_satisfaction(model,t,i):
+    return model.x[t,i] >= model.df[t,i]
+model.cons = Constraint(model.T, model.P ,rule = demand_satisfaction)
+
+#C3JW07100K02DC , Cutting Pattern 1
 
 solution = solve_model(model)
 model = solution[0]
 result = solution[1]
 print (result)
+model.solutions.store_to(result)
 
+print ("************************************************************************")
+print ("SKU Production Values \n")
 
+for i in model.P:
+    for t in model.T:
+        val = round(value(model.x[t,i]),0)
+        d = value(model.df[t,i])
+        if val > 0:
+            print ("Day:", t, "   SKU:",i,"   Group:",model.PGn[i].value,"   quantity:",val,"   demand:",d,"   Inventory Remaining:",val-d)
 
+print ("************************************************************************")
+print ("Bird Processing \n")
 
+# for t in model.T:
+#     for r,k,j in model.indx_r_k_j:
+#         if model.x[r,k]
 
 
 exit(0)
