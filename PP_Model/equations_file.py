@@ -60,7 +60,7 @@ model.H = Param(model.T, initialize = 100000)         # max no of avaiable carca
 model.K = Set(initialize = sections, ordered = True)             # no of sections
 model.R = Set(initialize=bird_type, ordered = True)     # type of carcasses
 
-def cp_to_sec(model,j):
+def cp_to_sec(model,j):   #
     global cp
     df_temp = cp[(cp.cutting_pattern == j)]
     return list(set(df_temp['section']))
@@ -72,7 +72,7 @@ def sec_to_cp(model,k):
     return list(set(df_temp['cutting_pattern']))
 model.Kj = Set(model.K, initialize = sec_to_cp)
 
-def indx_k_j_gen(model):
+def indx_k_j_gen(model):  # Main
     my_set = set()
     for k in model.K:
         for j in model.Kj[k]:
@@ -80,7 +80,7 @@ def indx_k_j_gen(model):
     return my_set
 model.indx_k_j = Set(dimen = 2, initialize = indx_k_j_gen)
 
-def cp_sec_to_p(model,k,j):
+def cp_sec_to_p(model,k,j):  # deprecate
     global y
     df_tmp = y[y.section.map(set([k]).issubset)]
     df_tmp = df_tmp[(df_tmp.cutting_pattern == j)]
@@ -91,7 +91,7 @@ def cp_sec_to_p(model,k,j):
 model.Jp = Set(model.indx_k_j, initialize = cp_sec_to_p)
 
 section_pg_set = set()
-def cp_sec_to_pg1(model,k,j):
+def cp_sec_to_pg1(model,k,j):   #bom
     global section_pg_set
     global y
     df_tmp = y[y.section.map(set([k]).issuperset)]
@@ -104,7 +104,10 @@ def cp_sec_to_pg1(model,k,j):
         return ()
 model.Jpg1 = Set(model.indx_k_j, initialize = cp_sec_to_pg1)
 
-def cp_sec_to_pg2(model,k,j):
+model.Jpg1.pprint()
+exit()
+
+def cp_sec_to_pg2(model,k,j):    # bom
     global section_pg_set
     global y
     df_tmp = y[y.section.map(set([k]).issubset)]
@@ -116,7 +119,7 @@ def cp_sec_to_pg2(model,k,j):
         return ()
 model.Jpg2 = Set(model.indx_k_j, initialize = cp_sec_to_pg2)
 
-def pgroup_p(model,i):
+def pgroup_p(model,i):  # separate
     global y
     df_temp = y[(y.product_group == i)]
     return set(df_temp['item_code'])

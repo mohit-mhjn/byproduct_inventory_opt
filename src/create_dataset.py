@@ -20,20 +20,19 @@ with open("input_files/product_group.csv") as infile2:
 # a = pandas.DataFrame(list(itertools.product(k2,k1)))
 
 # a.columns = ['product_group','bird_type']
-# a['Inventory'] = 0
+# a['inventory'] = 0
 # a.to_csv("input_files/inventory.csv", index= False)
 
 ## Sales Order  >>>>>>>
 
-dates = [str(datetime.date.today() + datetime.timedelta(days = k)) for k in range(0,3)]
-b_lst = list(itertools.product(dates,range(0,10),k1,k2))
-b = pandas.DataFrame(random.sample(b_lst,300))
-b.columns = ['date','customer_number','bird_type','product_group']
-b['order_number'] = 'Not Available'
-b['order_count'] = 0
-b['order_weight'] = 0
-b.to_csv("input_files/sales_order.csv", index = False)
-print (b)
+# dates = [str(datetime.date.today() + datetime.timedelta(days = k)) for k in range(0,3)]
+# b_lst = list(itertools.product(dates,range(0,10),k1,k2))
+# b = pandas.DataFrame(random.sample(b_lst,300))
+# b.columns = ['date','customer_number','bird_type','product_group']
+# b['order_number'] = 'Not Available'
+# b['order_count'] = 0
+# b['order_weight'] = 0
+# b.to_csv("input_files/sales_order.csv", index = False)
 
 ## Yield >>>>>>>>
 
