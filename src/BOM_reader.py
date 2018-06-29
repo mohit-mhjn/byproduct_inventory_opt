@@ -37,6 +37,10 @@ Required combinations for iteration in model:
 3. product_group vs (cutting_pattern,bird_type) : pg_cptyp_comb
 
 Pickle is used here to serialize the dict object (couln't use json because the keys are tuples)
+
+To Do:
+1. Verify DataConsistancy against indexes vs yield file (Currently, files are manually created hence they are consistent)
+2. Use indexes to filter unwanted lines in yield (this will act when a product group is not at all extracted from a particular type of bird)
 """
 
 import pandas
@@ -98,6 +102,7 @@ def update_combinations():
         cptyp_pg_comb[(i[1],i[2])].add(i[0])
         pg_cptyp_comb[i[0]].add((i[1],i[2]))
 
+    # Creating a python object of all the data required
     bom_data = {'yield_data':yd,
                 'sec_nwb_pg':sc_pg1,
                 'sec_wb_pg':sc_pg2,
@@ -106,12 +111,14 @@ def update_combinations():
                 'cptyp_pg':cptyp_pg_comb,
                 'pg_cptyp':pg_cptyp_comb}}
 
+    # Dump object in a cache file
     with open("input_files/bom_file","wb") as fp:
         pickle.dump(bom_data,fp)
     print("SUCCESS : bom file updated!")
     return None
 
 def read_combinations():
+    # Read cache and recreate the object
     with open("input_files/bom_file","rb") as fp:
         bom_data = dict(pickle.load(fp))
     return bom_data

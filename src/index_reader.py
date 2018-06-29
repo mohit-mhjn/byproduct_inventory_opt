@@ -17,6 +17,10 @@ pg_dct : Product Groups and their description
 cp_dct : Cutting Patterns, associated sections with the cut and the respective processing rate
 sec_dct : Sections and their associated/favourable Cutting Patterns
 indexes dictionary is the collection of all above
+
+To do:
+1. use pickle for object serialization, json is converting int keys to string
+2. Check consistancy within masters (if not catch and report error)
 """
 
 import pandas
@@ -56,17 +60,20 @@ def update_masters():
     # print (sec_dct)
     # print (cp_dct)
 
+    # Collect the required data in a python object
     indexes = {'bird_type':typ_dct,
                'cutting_pattern':cp_dct,
                'section':sec_dct,
                'product_group':pg_dct}
 
+    # Dump object in a cache file
     with open("input_files/index_file.json","w") as fp:
         json.dump(indexes,fp)
     print ("SUCESS : index file updated!")
     return None
 
 def read_masters():
+    # Read cache file recreate the object
     with open('input_files/index_file.json',"r") as fp:
         k = dict(json.load(fp))
     return k

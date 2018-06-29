@@ -5,6 +5,8 @@ function: get_parts() will import the initial available inventory of parts by pr
 
 Direct Execution of this file will just read the data and print
 In Indirect Execution it will be required to call the corresponding functions
+
+Comment code is the provision for case when input for live birds and part is avaiable within the same source file
 """
 
 import pandas
