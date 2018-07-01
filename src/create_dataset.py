@@ -24,7 +24,7 @@ with open("input_files/product_group.csv") as infile2:
 # a.to_csv("input_files/inventory.csv", index= False)
 
 ## Sales Order  >>>>>>>
-
+## FORMAT MODIFIED DO NOT USE THIS
 # dates = [str(datetime.date.today() + datetime.timedelta(days = k)) for k in range(0,3)]
 # b_lst = list(itertools.product(dates,range(0,10),k1,k2))
 # b = pandas.DataFrame(random.sample(b_lst,300))
@@ -51,3 +51,10 @@ with open("input_files/product_group.csv") as infile2:
 # A2['key'] = 1
 # A = A.merge(A2, on='key')[["cutting_pattern","section","prod_group_index","n_parts","bird_type_index","yield_p"]]
 # A.to_csv("input_files/yield.csv", index = False)
+
+## SKU Master >>
+
+C = pandas.DataFrame(list(itertools.product(k2,k1,['Fresh','Frozen'],[1,0])))
+C.columns = ['product_group','bird_type','product_type','marination',]
+C['active'] = 1
+C.to_csv("input_files/sku_master.csv", index=True)

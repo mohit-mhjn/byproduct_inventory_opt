@@ -10,5 +10,11 @@ orders = get_orders()
 birds_inv = get_birds()
 parts_inv = get_parts()
 
+demand_generator function =
+
 print (birds_inv)
 print (parts_inv)
+
+inventory_holding_cost
+processing_cost
+selling_price
