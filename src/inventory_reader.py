@@ -2,41 +2,30 @@
 To Extract inventroy data from the source files
 function: get_birds() will import the inventory of live birds by date by size to the processing unit
 function: get_parts() will import the initial available inventory of parts by product group by size at T=0
+            get_parts returned as dataframe for preprocessing with sales order >> main_program will convert to dictionary
 
 Direct Execution of this file will just read the data and print
 In Indirect Execution it will be required to call the corresponding functions
-
-Comment code is the provision for case when input for live birds and part is avaiable within the same source file
 """
 
 import pandas
-
-# def read_data():
-#     global inv
-#     global indx
-#     inv = pandas.read_csv("input_files/inventory.csv")
-#     pg = pandas.read_csv("input_files/product_group.csv")
-#     pg_subset = pg[(pg.product_group == 'LIVE_BIRD')]
-#     indx = set(pg_subset['prod_group_index'])
-#     return None
+import datetime
+import json
 
 def get_birds():
-    # global inv
-    # global indx
-    # tbl = inv[inv['product_group'].isin(indx)]
+    # Long Term Input from Farm Data/Harvest Data will be connected here >>
+    # More Clarification required for bird Inventroy
     tbl = pandas.read_csv("input_files/birds_available.csv")
     tbl.reset_index(inplace=True,drop=True)
     tbl_dct = tbl.set_index(['date','bird_type']).to_dict(orient='dict')['inventory']
     return tbl_dct
 
 def get_parts():
-    # global inv
-    # global indx
-    # tbl = inv[inv['product_group'].isin(indx) == False]
+    # Preprocess Inventroy data table from ERP in this function
     tbl = pandas.read_csv("input_files/inventory.csv")
-    tbl.reset_index(inplace=True,drop=True)
-    tbl_dct = tbl.set_index(['product_group','bird_type']).to_dict(orient='dict')['inventory']
-    return tbl_dct
+    #tbl.reset_index(inplace=True,drop=True)
+    #tbl_dct = tbl.set_index(['prod_group_index','bird_type_index','product_type']).to_dict(orient='dict')['inventory']
+    return tbl
 
 if __name__=='__main__':
     import os
@@ -47,5 +36,3 @@ if __name__=='__main__':
     print (get_birds())
     print ("\nPart Inventory >>>")
     print (get_parts())
-# else:
-#     read_data()

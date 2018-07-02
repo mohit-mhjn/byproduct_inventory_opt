@@ -1,0 +1,19 @@
+1. Maintenance Schedules of lines not incorporated
+
+2. Data Consistancy across Indexes, Coef and BOM >> Develop a checker and Error Logger for that like PP
+
+Eg: If a product Group is there it has to be related with a cutting pattern and yield for corresponding size
+A few more similar cases, will list them here soon
+
+3. A few indexes are hard coded:
+
+SKU type >> Fresh,Frozen
+customer Priorities >> 1,2
+Marination >> 1,0
+Process >> cutting,marination,freezing
+
+>> Yet to check if they can be generalized or not
+
+4. Object exchange between files is on key values >> Not good for quality, Idea: Define a custom class that will handle the input
+
+5. Alternate Possibilities of Cost and Capacity Parameters(Need to think how to incorporte)

@@ -18,13 +18,25 @@ cp_dct : Cutting Patterns, associated sections with the cut and the respective p
 sec_dct : Sections and their associated/favourable Cutting Patterns
 indexes dictionary is the collection of all above
 
+indexes = {'bird_type':typ_dct,
+           'cutting_pattern':cp_dct,
+           'section':sec_dct,
+           'product_group':pg_dct}
+
+Used pickle for object serialization, bcoz json is converting int keys to string
+
+While updating the data, the timestamp of the update event is stored in update_status file
+
 To do:
-1. use pickle for object serialization, json is converting int keys to string
+1. dateindex
 2. Check consistancy within masters (if not catch and report error)
+3. Try custom class instead of dict in the output object
 """
 
 import pandas
+import pickle
 import json
+import datetime
 
 def update_masters():
 
@@ -67,15 +79,25 @@ def update_masters():
                'product_group':pg_dct}
 
     # Dump object in a cache file
-    with open("input_files/index_file.json","w") as fp:
-        json.dump(indexes,fp)
+    with open("input_files/index_file","wb") as fp:
+        pickle.dump(indexes,fp)
+
+    # Recording Event in the status file
+    with open("input_files/update_status.json","r") as jsonfile:
+        us = dict(json.load(jsonfile))
+        us['index_file'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
+
+    with open("input_files/update_status.json","w") as jsonfile:
+        json.dump(us,jsonfile)
+
     print ("SUCESS : index file updated!")
+
     return None
 
 def read_masters():
     # Read cache file recreate the object
-    with open('input_files/index_file.json',"r") as fp:
-        k = dict(json.load(fp))
+    with open('input_files/index_file',"rb") as fp:
+        k = pickle.load(fp)
     return k
 
 if __name__=='__main__':

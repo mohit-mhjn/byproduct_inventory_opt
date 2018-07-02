@@ -36,7 +36,21 @@ Required combinations for iteration in model:
 2. (cutting_pattern,bird_type) vs product_group : cptyp_pg_comb
 3. product_group vs (cutting_pattern,bird_type) : pg_cptyp_comb
 
+Ref:
+bom_data = {'yield_data':yd,
+            'sec_nwb_pg':sc_pg1,
+            'sec_wb_pg':sc_pg2,
+            'iter_combs':{
+            'sec_cp':sec_cp_comb,
+            'typ_cp':typ_cp_comb,
+            'pgcptyp':pgcptyp_comb,
+            'typseccp':typseccp_comb,
+            'cptyp_pg':cptyp_pg_comb,
+            'pg_cptyp':pg_cptyp_comb}}
+
 Pickle is used here to serialize the dict object (couln't use json because the keys are tuples)
+
+While updating the data, the timestamp of the update event is stored in update_status file
 
 To Do:
 1. Verify DataConsistancy against indexes vs yield file (Currently, files are manually created hence they are consistent)
@@ -44,8 +58,9 @@ To Do:
 """
 
 import pandas
-import json
 import pickle
+import json
+import datetime
 
 def update_combinations():
 
@@ -78,12 +93,12 @@ def update_combinations():
     y = y[y.yield_p > 0]   # Safeguard
     y["section"] = y["section"].apply(lambda x: [int(i) for i in str(x)])
 
-    with open("input_files/index_file.json","r") as jsonfile:
-        indx = dict(json.load(jsonfile))
-        section_data = indx['section']
-        pg_data = indx["product_group"]
-        cp_data = indx["cutting_pattern"]
-        b_typ_data = indx["bird_type"]
+    from index_reader import read_masters
+    indx = read_masters()
+    section_data = indx['section']
+    pg_data = indx["product_group"]
+    cp_data = indx["cutting_pattern"]
+    b_typ_data = indx["bird_type"]
 
     sec_cp_comb = set()   # Set of section and favourable cutting patterns (section,cutting_pattern)
     for sec in section_data.keys():
@@ -94,38 +109,58 @@ def update_combinations():
     sc_pg2 = {h:get_whole_product_set(h,y) for h in sec_cp_comb}  # Cutting Pattern used on a section yields a set of product group (Whole Bird Entities)
 
     yd = yield_generator(y)
-    pgcptyp_comb = list(yd.keys())
 
+    pgcptyp_comb = list(yd.keys())
     cptyp_pg_comb = {(int(j),int(r)):set() for j in cp_data.keys() for r in b_typ_data.keys()}
     pg_cptyp_comb = {int(p):set() for p in pg_data.keys()}
+    typ_cp_comb = set()
     for i in pgcptyp_comb:
+        typ_cp_comb.add((i[2],i[1]))
         cptyp_pg_comb[(i[1],i[2])].add(i[0])
         pg_cptyp_comb[i[0]].add((i[1],i[2]))
 
-    # Creating a python object of all the data required
+    #Bad code, Better method possible
+    typseccp_comb = set()
+    for i in sec_cp_comb:
+        lst = [r[0] for r in typ_cp_comb if i[1]==r[1]]
+        for rn in lst:
+            typseccp_comb.add((rn,i[0],i[1]))
+
+    # Creating a python object of all the data required >> Try Custom Class Here
     bom_data = {'yield_data':yd,
                 'sec_nwb_pg':sc_pg1,
                 'sec_wb_pg':sc_pg2,
                 'iter_combs':{
                 'sec_cp':sec_cp_comb,
+                'typ_cp':typ_cp_comb,
+                'pgcptyp':pgcptyp_comb,
+                'typseccp':typseccp_comb,
                 'cptyp_pg':cptyp_pg_comb,
                 'pg_cptyp':pg_cptyp_comb}}
 
     # Dump object in a cache file
     with open("input_files/bom_file","wb") as fp:
         pickle.dump(bom_data,fp)
+
+    # Recording Event in the status file
+    with open("input_files/update_status.json","r") as jsonfile:
+        us = dict(json.load(jsonfile))
+        us['bom_file'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
+    with open("input_files/update_status.json","w") as jsonfile:
+        json.dump(us,jsonfile)
     print("SUCCESS : bom file updated!")
+
     return None
 
 def read_combinations():
     # Read cache and recreate the object
     with open("input_files/bom_file","rb") as fp:
-        bom_data = dict(pickle.load(fp))
+        bom_data = pickle.load(fp)
     return bom_data
 
 if __name__=='__main__':
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    # update_combinations()
+    update_combinations()
     # read_combinations()
