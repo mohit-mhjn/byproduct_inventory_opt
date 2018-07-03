@@ -26,8 +26,7 @@ cost_data = cc_data['cost']
 capacity_data = cc_data['capacity']
 
 #Step1: Demand Calculation and Re-calculate Inventory
-t_all = orders['date'].unique()
-
+exit()
 # MILP Model Initialization
 model = ConcreteModel()
 
