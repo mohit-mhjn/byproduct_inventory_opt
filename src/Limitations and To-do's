@@ -5,6 +5,11 @@
 Eg: If a product Group is there it has to be related with a cutting pattern and yield for corresponding size
 A few more similar cases, will list them here soon
 
+>> Inventory with product_group, bird_type and product_type
+>> Birds available with defined size/type of bird
+>> Cutting Pattern with defined sections
+>>
+
 3. A few indexes are hard coded:
 
 SKU type >> Fresh,Frozen

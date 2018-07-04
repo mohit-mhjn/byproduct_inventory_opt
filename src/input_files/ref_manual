@@ -1,2 +1,143 @@
 // This file enlists the input files and corresponding columns in each with their description
-// Status : Incomplete/Pending
+
+1. Bird Type:
+    A bird type defines the size of the bird available after the Harvest and used for processing meat.
+
+    key: bird_type_index
+
+    bird_type_index: A unique index to identify the bird type across the program
+    bird_type: Against the correponsding index how does user define the size
+    abs_weight: Against the correponsding index avg weight of the bird considered
+    dist_p: % distribution of a perticular bird zise in the population >> Not being used
+
+2. Birds Available
+    The data Inventory of the birds avaialable to the processing unit (supply)
+
+    key: date, bird_type
+
+    date: Against given date
+    bird_type: Bird type index (that redirects to size of bird)
+    inventory: Inventory of the birds (in total number/count of birds)
+
+3. Customer
+    Data Related to a customer (Customer Master)
+
+    key: customer number
+
+    customer_number: Index for a customer (uniquely identified for each customer)
+    customer_desc: Description of the customer against the corresponding number
+    priority: Priority of the customer(1/2) { 1: Important | 2: Un-important }
+
+4. Cutting Pattern
+    Master for bird processing. A procedure by which the bird is cut into parts/product groups
+
+    key: line,section, cutting_pattern
+
+    line: Cutting Patterns are applied on a conveyer line, the description of which is given here. Used for mapping purpose
+          Note: a cutting pattern is associated with a line but converse is not true.
+    cutting_pattern: cutting pattern index, a unique id by which cutting pattenr is identified
+    cutting_pattern description: Against the corresponding cutting pattern index how does the customer name the cutting pattern
+    section: on which individual section/set of sections, the corresponding cutting pattern is applied
+    rate: rate of cutting pattern application (number of times per hour)
+    capacity_kgph: Kilograms per hour processed by the cp >> Not being used
+    operational_cost*: cost of cutting pattern processing (unit not yet defined: per hour or per application of cp or per weight)
+
+5. Inventory
+    Data for inventory avaialble on hand (opening) at T for planning from T untill the planning horizon length
+    The inventory table extracted from the ERP is expected to be in the given format
+
+    key: product_group,bird_type_index,product_type,inv_age
+
+    product_group_index: The unique identifier for a product_group/part of a bird
+    bird_type_index: size of the bird as defined in bird type
+    product_type: for a product group and size, it is either fresh or frozen
+    inv_age: measured in days, How old is the inventory
+    inventory: measured in KG's, This is the Quantity on Hand
+
+6. Processing
+    Data for various stages in post-processing of bird to create SKUs
+
+    key: machine_id
+
+    machine: Unique identifier for processing equipment
+    machine_type: Against which stage/process the equipment is used
+    capacity_kgph: Caoacity of the equipment to process meat in Kilogram per Hour
+    operational_cost*: Cost of processing on this machine (unit yet to be defined: per weight or per time)
+
+7. Product Group:
+    Definition of product_group. product_group is a part of the bird that obtained by applying cutting pattern one or several sections
+    (Note that cutting pattern is applied on individual section or set of sections)
+
+    key: prod_group_index
+
+    prod_group_index: a unique identifier for product_group
+    product_group: description, How a customer calls a product_group
+    n_parts: Number of parts per bird
+    section: The set of sections from which the particular product group is extracted
+              (Note that: Product group can be extracted from a uniue set
+               eg: A product_group that is extracted from section 1 cannot be yielded by section 2)
+
+8. Sales Order:
+    The orders placed within the planning horizon, available at the customer sku level
+    The open orders table from the ERP is expected to be in the given format
+    An order placed can be inform of count of SKUs or total weight of SKUs
+
+    key: date,sku_index,customer_number
+
+    date: Date on which the order is to be satisfied (Assumption: pickup from the warehouse)
+    order_number: Unique identifier of the order (Invocing Purpose) May not be required
+    customer_number: unique identifier of the customer
+    sku_index: Unique Identifier of the SKU, that relates with the sku master to map with product group, size of bird, fresh/frozen, marination(1/0)
+    order_count: Quantity of Order in form of number of units
+    order_weight: Quantity of Order in form of number of units
+
+    (Note: It is not necessary to place order in both the UOM's either of the one will suffice the requirement, Conversion factor(avg) is available using the yield data)
+
+9. Section:
+    The distinct sections of bird for cutting pattern, yield and product group definition
+    The sections are exclusive of each other (Do not share any part of the bird)
+
+    key: section_index
+
+    section_index: unique identifier for section
+    description: How does user/customer will identify section
+
+10. SKU Master:
+    Definition of a meat SKU, It is mapped to various indexes to identify its production process
+
+    key: sku_index
+
+    sku_index: Unique identifier for SKU's
+    prod_group_index: Related product group to the SKU
+    bird_type_index: Related size of bird to the SKU
+    product_type: Fresh/Frozen
+    Marination: 1/0 (True, False)
+    active: Active/Inactive SKU (0/1)
+    selling_price: Selling Price of SKU
+    holding cost: Inventory holding cost of the SKU
+                  Only defined for Marination = 0 (Assumption: Inventory for Marinated not held as an Imbalance Inventory)
+    shelf_life: Shelf Life against the corresponding SKU Inventory
+                  Only defined for Marination = 0 (Assumption: Inventory for Marinated not managed as an Imbalance Inventory)
+
+11. update_status.json:
+
+    Structure: {"filename": latest updated on}
+
+    The file checks the latest updated timestamp of the cached files indicated by the key in the same
+    Note: Used for chache update history
+
+12. Yield:
+    The % yield of a particular part of the bird of a defined size by a defined cutting pattern
+
+    key: product_group_index,bird_type_index,cutting_pattern
+
+    cutting_pattern: Applied Cutting Pattern on the a Set of Sections (one or more together)
+    section: Identifying set of sections as aforementioned. This is related to product group
+    prod_group_index: Cutting Pattern applied on the section will produce a product group (part)
+    n_parts: Number of parts per bird of the corresponding product group.
+    bird_type_index: Size of bird used
+    yield_p: % yield of the part form the bird
+
+    Note: The yield data is used to make a conversion factor as mentioned in the SKU master point.
+          The avg signifies that a sku entity can be produced using multiple cutting patterns
+          but the difference in the yield of each is not significant, Hence avg of all is taken.

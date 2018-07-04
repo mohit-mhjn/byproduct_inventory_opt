@@ -25,8 +25,9 @@ cc_data = read_coef()
 cost_data = cc_data['cost']
 capacity_data = cc_data['capacity']
 
-#Step1: Demand Calculation and Re-calculate Inventory
-exit()
+dt_all = orders['date'].unique()
+dt_all.sort()
+
 # MILP Model Initialization
 model = ConcreteModel()
 

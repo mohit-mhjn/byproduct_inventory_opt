@@ -27,23 +27,22 @@ def get_parts():
     i_master = pandas.read_csv("input_files/sku_master.csv") # Getting Inventory Shelf Life
     i_master = i_master.filter(items =['prod_group_index','bird_type_index','product_type','shelf_life'])
     i_master.dropna(inplace=True)
-    tbl = tbl.merge(i_master, on = ['prod_group_index','bird_type_index','product_type']) # Join Schelf Life with Inv File
-    tbl = tbl[(tbl.inv_age < tbl.shelf_life)]    # Usable Inventory
+    print (i_master)
 
     # Checking Inventory Update Status (as of which date the inventory data is available)
-    with open('input_files/update_status.json') as jsonfile:
-        us = dict(json.load(jsonfile))
-        dt = us['inventory']
+    # with open('input_files/update_status.json') as jsonfile:
+        # us = dict(json.load(jsonfile))
+        # dt = us['inventory']
 
-    tbl['date'] = datetime.datetime.strptime(dt,"%Y-%m-%d %H:%M:%S").date()
-    tbl.reset_index(inplace=True,drop =True)
-    return tbl
+    # tbl['date'] = datetime.datetime.strptime(dt,"%Y-%m-%d %H:%M:%S").date()
+    # tbl.reset_index(inplace=True,drop =True)
+    return 0
 
 if __name__=='__main__':
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    print ("Bird Inventory >>>")
-    print (get_birds())
+    # print ("Bird Inventory >>>")
+    # print (get_birds())
     print ("\nPart Inventory >>>")
     print (get_parts())
