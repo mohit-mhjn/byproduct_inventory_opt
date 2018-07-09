@@ -2,8 +2,12 @@
 To Extract inventroy data from the source files
 
 function: get_birds() will import the inventory of live birds by date by size to the processing unit
+
 function: get_parts() will import the initial available inventory of parts by product group by size at T=0
-            get_parts returned as dataframe for preprocessing with sales order >> main_program will convert to dictionary
+            get_parts returned as two separate entities for fresh and frozen inventory
+            Age is not critical in frozen inventory hence, presently considered only for fresh product
+            Keys for fresh Inventory : product_group,bird_type,age
+            Keys for frozen Inventory : product_group,bird_type,age
 
 Direct Execution of this file will just read the data and print
 Indirect Execution will be requir calling the corresponding functions
@@ -13,7 +17,7 @@ import pandas
 import datetime
 import json
 
-def get_birds():
+def get_birds(indexes,horizon):
     # Long Term Input from Farm Data/Harvest Data will be connected here >>
     # More Clarification required for bird Inventroy
     tbl = pandas.read_csv("input_files/birds_available.csv")
@@ -21,28 +25,43 @@ def get_birds():
     tbl_dct = tbl.set_index(['date','bird_type']).to_dict(orient='dict')['inventory']
     return tbl_dct
 
-def get_parts():
+def get_parts(indexes,horizon):
+
+    horizon.sort()
+
+    # Checking Inventory Update Status (as of which date the inventory data is available)
+    with open('input_files/update_status.json') as jsonfile:
+        us = dict(json.load(jsonfile))
+        dt = datetime.datetime.strptime(us['inventory'],"%Y-%m-%d %H:%M:%S").date()
+
+    if horizon[0] > dt:  # Depends on Batch Job Schedule
+        raise AssertionError("T=0 Inventory data has not been updated, Please reload inventory!")
+        return None
+
     # Preprocess Inventroy data table from ERP in this function
     tbl = pandas.read_csv("input_files/inventory.csv")
     i_master = pandas.read_csv("input_files/sku_master.csv") # Getting Inventory Shelf Life
     i_master = i_master.filter(items =['prod_group_index','bird_type_index','product_type','shelf_life'])
     i_master.dropna(inplace=True)
-    print (i_master)
-
-    # Checking Inventory Update Status (as of which date the inventory data is available)
-    # with open('input_files/update_status.json') as jsonfile:
-        # us = dict(json.load(jsonfile))
-        # dt = us['inventory']
-
-    # tbl['date'] = datetime.datetime.strptime(dt,"%Y-%m-%d %H:%M:%S").date()
-    # tbl.reset_index(inplace=True,drop =True)
-    return 0
+    tbl = tbl.merge(i_master, on = ['prod_group_index','bird_type_index','product_type'])
+    tbl = tbl[(tbl.inv_age <= tbl.shelf_life)]
+    fresh_dct = tbl[(tbl.product_type == 'Fresh')].set_index(['prod_group_index','bird_type_index','inv_age']).to_dict(orient='dict')['inventory']
+    frozen = tbl[(tbl.product_type == 'Frozen')]
+    frozen = frozen.drop(labels = ['inv_age','shelf_life','product_type'], axis=1)
+    frozen = frozen.groupby(by = ['prod_group_index','bird_type_index']).sum()
+    frozen_dct = frozen.to_dict(orient = 'dict')['inventory']
+    return {'Fresh':fresh_dct,'Frozen':frozen_dct}
 
 if __name__=='__main__':
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    # print ("Bird Inventory >>>")
-    # print (get_birds())
+    from index_reader import read_masters
+    indexes = read_masters()
+    horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)]  # Attach with Indexes
+    print ("Bird Inventory >>>")
+    print (pandas.DataFrame(get_birds(indexes,horizon), index=[0]))
     print ("\nPart Inventory >>>")
-    print (get_parts())
+    part_inv = get_parts(indexes,horizon)
+    print (part_inv['Fresh'])
+    print (part_inv['Frozen'])

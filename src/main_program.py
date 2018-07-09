@@ -11,35 +11,42 @@ from inventory_reader import get_birds, get_parts
 from index_reader import read_masters
 from BOM_reader import read_combinations
 from coef_param import read_coef
+from ageing_param import read_inv_life
 
 # Importing Solver Fucntion
 from solutionmethod import solve_model
 
 # Parsing Input Data
-orders = get_orders()
-birds_inv = get_birds()
-parts_inv = get_parts()
+# Static Data : Cached
 indexes = read_masters()
 bom_data = read_combinations()
 cc_data = read_coef()
 cost_data = cc_data['cost']
 capacity_data = cc_data['capacity']
+inv_life_data = read_inv_life()
+shelf_life_fresh = inv_life_data['shelf_life_fresh']
+age_comb_fresh = inv_life_data['age_combinations_fresh']
 
-dt_all = orders['date'].unique()
-dt_all.sort()
+# Variable Data
+horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)] #Pipeline: Get through Index
+orders = get_orders(indexes,horizon)
+birds_inv = get_birds(indexes,horizon)
+parts_inv = get_parts(indexes,horizon)
+fresh_inv = parts_inv['Fresh']
+frozen_inv = parts_inv['Frozen']
 
 # MILP Model Initialization
 model = ConcreteModel()
 
 # Index Definition
-model.T = Set(initialize= list(map(lambda x: str(x),t_all)), ordered = True) # planning horizon* Temporary >> To include initialize in indx
+model.T = Set(initialize= list(map(lambda x: str(x),horizon)), ordered = True) # planning horizon* Temporary >> To include initialize in indx
 model.J = Set(initialize= indexes['cutting_pattern'].keys())   # cutting patterns
 model.P = Set(initialize= indexes['product_group'].keys())     # products
 model.K = Set(initialize= indexes['section'].keys())          # no of sections
 model.R = Set(initialize= indexes['bird_type'].keys())         # type of carcasses
-model.P_type = Set(initialize = ['Fresh','Frozen'])          # Type of Products
-model.M = Set(initialize = [1,0])                           # Marination Indicator
-model.C = Set(initialize = [1,2])                           # Customer Priority Indicator
+model.P_type = Set(initialize = indexes['product_typ'])          # Type of Products
+model.M = Set(initialize = indexes['marination'])                # Marination Indicator
+model.C = Set(initialize = indexes['c_priority'])                # Customer Priority Indicator
 
 # Generating combinations
 def combination_gen1(model,j):
@@ -97,16 +104,50 @@ def combination_gen11(model,r,j):
     return bom_data['iter_combs']['cptyp_pg'][(j,r)]
 model.RJp = Set(model.indx_rj,initialize = combination_gen11)
 
+def combination_gen12(model):
+    global age_comb_fresh
+    return age_comb_fresh
+model.INV_Fresh = Set(dimen = 3, initialize=combination_gen12)
+
 # Loading Input Parameters
 def inv_gen1(model,t,r):
     global birds_inv
     return birds_inv[(t,r)]
 model.H = Param(model.T, model.R, initialize = inv_gen1)
 
+def inv_gen2(model,p,r,l):
+    global fresh_inv
+    if (p,r,l) in fresh_inv.keys():
+        return fresh_inv[(p,r,l)]
+    else:
+        return 0
+model.inv_fresh = Param(model.INV_Fresh, initialize = inv_gen2)
+
+def inv_gen3(model,p,r):
+    global frozen_inv
+    if (p,r) in frozen_inv.keys():
+        return frozen_inv[(p,r)]
+    else:
+        return 0
+model.inv_frozen = Param(model.P,model.R, initialize = inv_gen3)
+
+def sales_gen1(model,t,cp,p,r,pt,m):
+    global orders
+    if (t,cp,p,r,pt,m) in orders.keys():
+        return orders[(t,cp,p,r,pt,m)]
+    else:
+        return 0
+model.sales_order = Param(model.T,model.C,model.P,model.R,model.P_type,model.M, initialize = sales_gen1)
+
 def yield_gen(model,p,j,r):
     global bom_data
     return bom_data['yield_data'][(p,j,r)]['yld']
 model.yd = Param(model.indx_pjr, initialize = yield_gen)
+
+def shelflife_gen(model,p,r): # Only Fresh
+    global shelf_life_fresh
+    return shelf_life_fresh[(p,r)]
+model.L = Param(model.P,model.R,initialize = shelflife_gen)
 
 def capacity_gen1(model,process):
     global capacity_data

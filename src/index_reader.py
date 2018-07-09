@@ -71,12 +71,18 @@ def update_masters():
 
     # print (sec_dct)
     # print (cp_dct)
+    product_typ = ['Fresh','Frozen']
+    marination = [1,0]
+    c_priority = [1,2]
 
     # Collect the required data in a python object
     indexes = {'bird_type':typ_dct,
                'cutting_pattern':cp_dct,
                'section':sec_dct,
-               'product_group':pg_dct}
+               'product_group':pg_dct,
+               'marination': marination,
+               'c_priority': c_priority,
+               'product_typ': product_typ}
 
     # Dump object in a cache file
     with open("input_files/index_file","wb") as fp:
