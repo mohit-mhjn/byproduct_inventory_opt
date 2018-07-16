@@ -24,6 +24,7 @@ To Do:
 2. planning horizon include in indexes
 3. Data Post processing : Map indexes to their description
 """
+
 # Setting Up Environment
 import os
 directory = os.path.dirname(os.path.abspath(__file__))
@@ -238,66 +239,65 @@ model.zk = Var(model.T, model.R, model.K, domain = NonNegativeIntegers)   # Numb
 model.zkj = Var(model.T, model.indx_rkj, domain = NonNegativeIntegers)  # Number of times cutting pattern j is applied on section k of carcass type R
 model.zj = Var(model.T, model.indx_rj, domain = NonNegativeIntegers)     # Number of times cutting pattern j is applied on bird of size R
 
-model.xpr = Var(model.T, model.P, model.R, domain = NonNegativeReals)
-model.ifs = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Auxillary Inv Fresh
-model.ifz = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Auxillary Inv Frozen (Aeging Diff not considered)
-model.xpjr = Var(model.T, model.indx_pjr, domain = NonNegativeReals)
+model.xpr = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Quantity of product P of bird type R produced in time slot 't'
+model.ifs = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Auxillary variable to check Inv Fresh
+model.ifz = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Auxillary variable to check Inv Frozen (Aeging Diff not considered)
+model.xpjr = Var(model.T, model.indx_pjr, domain = NonNegativeReals)     # Quantity of product P of bird type R produced in time slot 't' with cutting pattern J
 
-model.x_freezing = Var(model.T, model.P, model.R, domain = NonNegativeReals)
-model.x_marination = Var(model.T,model.P,model.R, domain = NonNegativeReals)
-model.slack_orders = Var(model.T,model.C,model.P,model.R,model.P_type,model.M, domain = NonNegativeReals)
+model.x_freezing = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Quantity of Product P of bird type R converted from Fresh to Frozen
+model.x_marination = Var(model.T,model.P,model.R, domain = NonNegativeReals)    # Quantity of Product P of bird type R converted from Fresh to Fresh Marinated
 
-model.u_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)
-model.v_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)
-model.um_fresh = Var(model.T,model.P, model.R, domain = NonNegativeReals)
-model.vm_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)
-model.u_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)
-model.v_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+model.u_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)       # Demand Satisfied Fresh
+model.v_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)       # Demand Unsatisfied Fresh
+model.um_fresh = Var(model.T,model.P, model.R, domain = NonNegativeReals)       # Demand Satisfied marinated fresh
+model.vm_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Unsatisfied marinated fresh
+model.u_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Satisfied Frozen
+model.v_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Unsatisfied Frozen
 
 ## Constraints ##############################################
 
 def carcass_availability(model,t,r):
     return model.z[t,r] <= model.H[t,r]
-model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)
+model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)      # Total Number of Birds Cut < Bird Available
 
 def carcass_to_section(model,t,r,k):
     return model.zk[t,r,k] == model.z[t,r]
-model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)
+model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)         # All sections of birds are cut in equal number (no inventroy at section level)
 
 def carcass_in_cutpattern(model,t,r,k):
     lst = [j0 for r0,k0,j0 in model.indx_rkj if r0 == r and k0 == k and j0 in model.Kj[k]]
     return sum(model.zkj[t,r,k,j] for j in lst) == model.zk[t,r,k]
-model.A2Constraint = Constraint(model.T, model.R, model.K, rule = carcass_in_cutpattern)
+model.A2Constraint = Constraint(model.T, model.R, model.K, rule = carcass_in_cutpattern)   # Total number of cuts on section k of bird type r is the sum of total applicable cutting pattenrs on (r,k) combinations
 
 def cutting_pattern_count_gen(model,t,r,k,j):
     return model.zj[t,r,j] >= model.zkj[t,r,k,j]
-model.A3Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_count_gen)
+model.A3Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_count_gen)  # Determining number of times cutting pattern J is applied (min value)
 
 def cutting_pattern_count_limiter(model,t,r,j):  # Will become redundant if z is in min(obj)
     return model.zj[t,r,j] <= sum(model.zkj[t,r,k,j] for k in model.Jk[j])
-model.A4Constraint = Constraint(model.T, model.indx_rj, rule = cutting_pattern_count_limiter)
+model.A4Constraint = Constraint(model.T, model.indx_rj, rule = cutting_pattern_count_limiter) # Determining number of times cutting pattern J is applied (max value)
 
 def cutting_pattern_balancer(model,t,r,k,j):
     return model.zkj[t,r,k,j] == model.zj[t,r,j]
-model.A5Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer)
+model.A5Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer)   # Cutting pattern of whole bird is equally applied on all the sections
 
 def product_yield_eqn(model,t,r,k,j,p):
-    all_items = set(model.RJp[r,j])
-    products1 = set([p])
-    products2 = set(model.KJp2[k,j])
-    products = products1.union(products2)
+    all_items = set(model.RJp[r,j])       # >> All items possible from r,j
+    products1 = set([p])                  # >> All sectional(non-whole bird) bird entities from cutting pattenr j
+    products2 = set(model.KJp2[k,j])      # >> All whole bird entities from cutting pattern j
+    products = products1.union(products2) # >> Combine two sets of possible products
     products = all_items.intersection(products)  # >> This step will any remove any p = -1 coming from indx_rjkp
     if not products:
         return Constraint.Skip
     else:
         return model.zkj[t,r,k,j] == sum(model.xpjr[t,p,j,r]/model.yd[p,j,r] for p in products)
-model.A7Constraint = Constraint(model.T, model.indx_rkjp, rule = product_yield_eqn)
+model.A7Constraint = Constraint(model.T, model.indx_rkjp, rule = product_yield_eqn)        # Conversion of a cut-up into a product group
 
 ## Expressions ##########################################
 
 def expression_gen1(model,t,p,r):
     return sum(model.xpjr[t,p,j1,r] for p1,j1,r1 in model.indx_pjr if p1 == p and r1 == r)
-model.fresh_part_production = Constraint(model.T,model.P,model.R, rule = expression_gen1)
+model.fresh_part_production = Expression(model.T, model.P, model.R, rule = expression_gen1)
 
 def expression_gen2(model,t,p,r):
     return model.x_freezing[t,p,r] + model.x_marination[t,p,r] + model.u_fresh[t,p,r]
@@ -317,11 +317,6 @@ def expression_gen4(model,t,p,r):
     return sum(model.inv_fresh[t,p,r,l1] for l1 in range(1,int(model.L[p,r])))
 model.total_inv_fresh = Expression(model.T,model.P,model.R, rule = expression_gen4)
 
-def expression_gen51(model,t,p,r):
-    return model.total_inv_fresh[t,p,r] + model.fresh_part_production[t,p,r] >= model.inv_usage[t,p,r]
-model.expression_gen51 = Constraint(model.T,model.P,model.R, rule = expression_gen51)
-# inv_fresh for all ages + model.fresh_part_production[t,p,r] =< model.inv_usage[t,p,r])
-
 def expression_gen5(model,t,p,r):
     if t == 0:
         return model.initial_inv_frozen[p,r]
@@ -330,6 +325,11 @@ def expression_gen5(model,t,p,r):
 model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen5)
 
 ##### Constraints on top of Expressions:
+
+def limit_inv_usage(model,t,p,r):
+    return model.total_inv_fresh[t,p,r] + model.fresh_part_production[t,p,r] >= model.inv_usage[t,p,r]
+model.A8Constraint = Constraint(model.T,model.P,model.R, rule = limit_inv_usage)
+# inv_fresh for all ages + model.fresh_part_production[t,p,r] =< model.inv_usage[t,p,r])
 
 def fresh_requirement_balance(model,t,p,r):
     return model.u_fresh[t,p,r] + model.v_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C)
@@ -355,22 +355,45 @@ def inv_requirement_balance2(model,t,p,r):
     return model.ifz[t,p,r] == model.inv_frozen[t,p,r]
 model.requirement_balance6 = Constraint(model.T, model.P, model.R, rule = inv_requirement_balance2)
 
-# Freeze Inv at the age = shelf life
+# Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
+def freeze_expiring_inventory(model,t,p,r,l):
+    if model.L[p,r] == l:
+        return model.x_freezing[t,p,r] >= model.inv_fresh[t,p,r,l]
+    else:
+        return Constraint.Skip
+model.A9Constraint = Constraint(model.T, model.INV_Fresh, rule = freeze_expiring_inventory)
 
-# Capacity Freezing
+def capacity_gen1(model,t,p,r):
+    return model.x_freezing[t,p,r] <= model.process_capacity['freezing']*24
+model.A10Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen1)
 
+def capacity_gen2(model,t,p,r):
+    return model.x_marination[t,p,r] <= model.process_capacity['marination']*24
+model.A11Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen2)
 
-
-# Capacity Marination
-
-# Capacity Cutting Pattern Line
+def capacity_gen3(model,t,j):
+    return sum(model.zkj[t,r,k,j] for r,k,j1 in model.indx_rkj if j == j1) <= 24*model.cutting_capacity[j]
+model.A12Constraint = Constraint(model.T, model.J, rule  = capacity_gen3)
 
 # Costing Expressions : selling_gains - Op Cost - Inv holding
+
+def expression_gen6(model,t):
+    return sum(model.u_fresh[t,p,r]*model.selling_price[p,r,'Fresh',0] + model.um_fresh[t,p,r]*model.selling_price[p,r,'Fresh',1] + model.u_frozen[t,p,r]*model.selling_price[p,r,'Frozen',0] for p in model.P for r in model.R)
+model.selling_gains = Expression(model.T, rule = expression_gen6)   # Calculated selling gains obtained from satisfied demand of SKU's
+
+def expression_gen7(model,t):
+    return sum(sum(model.zkj[t,r,k,j] for r,k,j1 in model.indx_rkj if j == j1)*model.unit_cutting_cost[j] for j in model.J) + sum(model.x_freezing[t,p,r]*model.unit_freezing_cost + model.x_marination[t,p,r]*model.unit_marination_cost for p in model.P for r in model.R)
+model.operations_cost = Expression(model.T, rule = expression_gen7)
+
+def expression_gen8(model,t):
+    return sum(model.total_inv_fresh[t,p,r]*model.inventory_holding_cost[p,r,'Fresh'] + model.ifz[t,p,r]*model.inventory_holding_cost[p,r,'Frozen'] for p in model.P for r in model.R)
+model.holding_cost = Expression(model.T, rule = expression_gen8)
 
 ###################################  Temporary #########################
 # def force1(model):
 #     return model.zk['2018-06-28',1,1] >= 10
 # model.F1Constraint = Constraint(rule = force1)
+exit()
 
 def force11(model):
     return model.x_freezing[0,18,1] == 10
