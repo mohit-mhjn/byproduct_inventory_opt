@@ -31,7 +31,8 @@ directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 import datetime
 from pyomo.environ import *
-
+import itertools
+import pandas
 # Importing Input Data
 from sales_order_reader import get_orders
 from inventory_reader import get_birds, get_parts
@@ -195,42 +196,42 @@ model.yd = Param(model.indx_pjr, initialize = yield_gen)    # Yield of product p
 def shelflife_gen(model,p,r): # Only Fresh
     global shelf_life_fresh
     return shelf_life_fresh[(p,r)]
-model.L = Param(model.P,model.R,initialize = shelflife_gen)
+model.L = Param(model.P,model.R,initialize = shelflife_gen)       # Shelf Life of fresh product p of bird type r
 
 def capacity_gen1(model,process):
     global capacity_data
     return capacity_data[process]
-model.process_capacity = Param(['freezing','marination'],initialize= capacity_gen1)
+model.process_capacity = Param(['freezing','marination'],initialize= capacity_gen1)   # Hard Coded process steps | Marination and freezing Capacity
 
 def capacity_gen2(model,j):
     global capacity_data
     return capacity_data['cutting_pattern'][j]
-model.cutting_capacity = Param(model.J, initialize = capacity_gen2)
+model.cutting_capacity = Param(model.J, initialize = capacity_gen2)       # Cutting Capacity at cutting pattern J (birds/sections per hour)
 
 # def cost_gen1(model,process):
 #     global cost
 #     return cost_data[process]
-model.unit_freezing_cost = Param(initialize= cost_data['freezing_cost'])
+model.unit_freezing_cost = Param(initialize= cost_data['freezing_cost'])   # Operations Cost Coef. Freezing Cost
 
 # def cost_gen2(model,process):
 #     global cost
 #     return cost_data[process]
-model.unit_marination_cost = Param(initialize= cost_data['marination_cost'])
+model.unit_marination_cost = Param(initialize= cost_data['marination_cost'])   # Operations Cost Coef. Marination Cost
 
 def cost_gen3(model,j):
     global cost_data
     return cost_data['cutting_cost'][j]
-model.unit_cutting_cost = Param(model.J,initialize = cost_gen3)
+model.unit_cutting_cost = Param(model.J,initialize = cost_gen3)    # Operations Cost Cost of Cutting >> Related with Cutting Pattern
 
 def cost_gen4(model,p,r,t):
     global cost_data
     return cost_data['holding_cost'][(p,r,t)]
-model.inventory_holding_cost = Param(model.P,model.R,model.P_type, initialize = cost_gen4)
+model.inventory_holding_cost = Param(model.P,model.R,model.P_type, initialize = cost_gen4) # Cost coef of Inventroy Holding >> Fresh and Frozen product 'P' of bird type 'R'
 
 def cost_gen5(model,p,r,t,m):
     global cost_data
     return cost_data['selling_price'][(p,r,t,m)]
-model.selling_price = Param(model.P,model.R,model.P_type,model.M, initialize = cost_gen5)
+model.selling_price = Param(model.P,model.R,model.P_type,model.M, initialize = cost_gen5)  # Selling Price (profit Cost Coef) selling price of product p bird type R against fresh/frozen and marination 1/0
 
 ## Variable Objects #######################################
 
@@ -321,7 +322,7 @@ def expression_gen5(model,t,p,r):
     if t == 0:
         return model.initial_inv_frozen[p,r]
     else:
-        return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t,p,r]
+        return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r]
 model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen5)
 
 ##### Constraints on top of Expressions:
@@ -393,21 +394,122 @@ model.holding_cost = Expression(model.T, rule = expression_gen8)
 # def force1(model):
 #     return model.zk['2018-06-28',1,1] >= 10
 # model.F1Constraint = Constraint(rule = force1)
-exit()
 
-def force11(model):
-    return model.x_freezing[0,18,1] == 10
-model.F11Constraint = Constraint(rule = force11)
+# def force11(model):
+#     return model.x_freezing[0,18,1] == 10
+# model.F11Constraint = Constraint(rule = force11)
 
 # def force2(model):
 #     return model.xpjr[0,18,1,1] >= 10
 # model.F2Constraint = Constraint(rule = force2)
 
 def obj(model):
-    return sum(model.inv_fresh[t,p,r,l] for t in model.T for p,r,l in model.INV_Fresh) + sum(model.z[t,r] for t in model.T for r in model.R)
+    return sum(model.z[t,r] for t in model.T for r in model.R)
 model.objctve = Objective(rule = obj, sense = minimize)
 
 solution = solve_model(model)
 model = solution[0]
 result = solution[1]
-print(result)
+# print(result)
+
+############################################################## post processing to print result tables >>
+
+# Bird Type Requirement
+bird_req_data = []
+for t,r in itertools.product(model.T,model.R):
+    bird_req_data.append({'date':str(horizon[t]),'bird_size':indexes['bird_type'][r]['bird_type'],'req_number':model.z[t,r].value})
+bird_type_requirement = pandas.DataFrame(bird_req_data)
+bird_type_requirement = bird_type_requirement[(bird_type_requirement.req_number > 0)]
+
+
+#Cutting Pattern Plan
+cutting_pattern_data = []
+for t,(r,k,j) in itertools.product(model.T,model.indx_rkj):
+    cutting_pattern_data.append({'date':str(horizon[t]),'bird_type':indexes['bird_type'][r]['bird_type'],'section':indexes['section'][k]['description'],'cutting_pattern':j,'line':indexes['cutting_pattern'][j]['line'], 'pattern_count':model.zkj[t,r,k,j].value })
+cutting_pattern_plan = pandas.DataFrame(cutting_pattern_data)
+cutting_pattern_plan = cutting_pattern_plan[(cutting_pattern_plan.pattern_count > 0)]
+
+
+#Output Production and Processing
+production_data1 = []
+production_data2 = []
+production_data3 = []
+
+for t,p,r in itertools.product(model.T, model.P, model.R):
+    production_data1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':value(model.fresh_part_production[t,p,r]),'UOM':'KG'})
+    production_data2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':model.x_freezing[t,p,r].value,'UOM':'KG'})
+    production_data3.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':model.x_marination[t,p,r].value,'UOM':'KG'})
+
+fresh_production = pandas.DataFrame(production_data1)
+fresh_production = fresh_production[(fresh_production.quantity_produced > 0)]
+
+freezing_lots = pandas.DataFrame(production_data2)
+freezing_lots = freezing_lots[(freezing_lots.quantity_produced > 0)]
+
+marination_lots = pandas.DataFrame(production_data3)
+marination_lots = marination_lots[(marination_lots.quantity_produced > 0)]
+
+
+inventory_report1 = []
+for t,(p,r,l) in itertools.product(model.T,model.INV_Fresh):
+    inventory_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'age_days':l,'quantity_on_hand':model.ifs[t,p,r,l].value,'UOM':'KG'})
+fresh_inventory_report = pandas.DataFrame(inventory_report1)
+fresh_inventory_report = fresh_inventory_report[(fresh_inventory_report.quantity_on_hand > 0)]
+
+inventory_report2 = []
+for t,p,r in itertools.product(model.T,model.P, model.R):
+    inventory_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_on_hand':model.ifz[t,p,r].value,'UOM':'KG'})
+frozen_inventory_report = pandas.DataFrame(inventory_report2)
+frozen_inventory_report = frozen_inventory_report[(frozen_inventory_report.quantity_on_hand > 0)]
+
+sales_cost_report1 = []
+sales_cost_report2 = []
+sales_cost_report3 = []
+
+for t,p,r in itertools.product(model.T,model.P,model.R):
+    fresh_satisfied_q = model.u_fresh[t,p,r].value
+    fresh_unsatisfied_q = model.v_fresh[t,p,r].value
+    orders1 = sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C)
+    selling_gains1 = model.selling_price[p,r,'Fresh',0]*fresh_satisfied_q
+    sales_cost_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders1),'satisfied':fresh_satisfied_q,'unsatisfied':fresh_unsatisfied_q,'selling_gains':value(selling_gains1)})
+
+    marinated_satisfied_q = model.um_fresh[t,p,r].value
+    marinated_unsatisfied_q = model.vm_fresh[t,p,r].value
+    orders2 = sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C)
+    selling_gains2 = model.selling_price[p,r,'Fresh',1]*marinated_satisfied_q
+    sales_cost_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders2),'satisfied':marinated_satisfied_q,'unsatisfied':marinated_unsatisfied_q,'selling_gains':value(selling_gains2)})
+
+    frozen_satisfied_q = model.u_frozen[t,p,r].value
+    frozen_unsatisfied_q = model.v_frozen[t,p,r].value
+    orders3 = sum(model.sales_order[t,c,p,r,'Frozen',0] for c in model.C)
+    selling_gains3 = model.selling_price[p,r,'Frozen',0]*frozen_satisfied_q
+    sales_cost_report3.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders3),'satisfied':frozen_satisfied_q,'unsatisfied':frozen_unsatisfied_q,'selling_gains':value(selling_gains3)})
+
+
+sales_fresh_sku = pandas.DataFrame(sales_cost_report1)
+sales_fresh_sku = sales_fresh_sku[(sales_fresh_sku.orders > 0)]
+
+sales_marination_sku = pandas.DataFrame(sales_cost_report2)
+sales_marination_sku = sales_marination_sku[(sales_marination_sku.orders > 0)]
+
+sales_frozen_sku = pandas.DataFrame(sales_cost_report3)
+sales_frozen_sku = sales_frozen_sku[(sales_frozen_sku.orders > 0)]
+
+
+cost_report1 = []
+for t in model.T:
+    cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t]),'Revenue':value(model.selling_gains[t])})
+cost_summary = pandas.DataFrame(cost_report1)
+
+
+print (bird_type_requirement)
+print (cutting_pattern_plan)
+print (fresh_production)
+print (freezing_lots)
+print (marination_lots)
+print (fresh_inventory_report)
+print (frozen_inventory_report)
+print (sales_fresh_sku)
+print (sales_frozen_sku)
+print (sales_marination_sku)
+print (cost_summary)
