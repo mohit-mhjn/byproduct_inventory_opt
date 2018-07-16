@@ -104,8 +104,6 @@ def cp_sec_to_pg1(model,k,j):   #bom
         return ()
 model.Jpg1 = Set(model.indx_k_j, initialize = cp_sec_to_pg1)
 
-model.Jpg1.pprint()
-exit()
 
 def cp_sec_to_pg2(model,k,j):    # bom
     global section_pg_set
@@ -277,9 +275,9 @@ def obj(model):
     return sum(model.z[t,r] for t in model.T for r in model.R)
 model.objctve = Objective(rule = obj, sense = minimize)
 
-def demand_satisfaction(model,t,i):
-    return model.x[t,i] >= model.df[t,i]
-model.cons = Constraint(model.T, model.P ,rule = demand_satisfaction)
+def demand_satisfaction(model,t):
+    return model.xjr[t,'C3JW07100K02DC',1.6,1] >= 10
+model.cons = Constraint(model.T,rule = demand_satisfaction)
 
 #C3JW07100K02DC , Cutting Pattern 1
 

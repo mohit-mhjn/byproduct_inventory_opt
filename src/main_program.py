@@ -1,3 +1,29 @@
+"""
+Note: Compatible with Python 3
+
+This file handles the main pyomo MILP that comprises of required Sets, Constraints, Expression, Param and Model objects.
+Concrete model is used for instance creation
+
+Loading Data in concrete model:
+To load the static data cached data is imported from the respective reader modules
+To load the dynamic data input files are read and transformed using the function of the respective readers (sales,inventory)
+
+General Ref:
+combination_gen : function used to load pyomo indexed sets in the model. The combinations are preprocessed and cached
+expression_gen : fucntion used to generate pyomo expressions that are mentioned against
+A [i] Constraint : Name used to indicate constraint with index i
+In Comments, Product is reffered as product group
+
+Assumptions:
+1. If a cutting pattern is applied on whole bird it applies on all the sections of the birds in equal number of times
+2. Inventory transfer if FIFO
+3. Frozen product doesn't age (long shelf life in comparison with planning horizon)
+
+To Do:
+1. cache r,j,k,p combinations
+2. planning horizon include in indexes
+3. Data Post processing : Map indexes to their description
+"""
 # Setting Up Environment
 import os
 directory = os.path.dirname(os.path.abspath(__file__))
@@ -16,8 +42,8 @@ from ageing_param import read_inv_life
 # Importing Solver Fucntion
 from solutionmethod import solve_model
 
-# Parsing Input Data
-# Static Data : Cached
+## Parsing Input Data  ###################################################
+## Static Data : Cached
 indexes = read_masters()
 bom_data = read_combinations()
 cc_data = read_coef()
@@ -27,19 +53,19 @@ inv_life_data = read_inv_life()
 shelf_life_fresh = inv_life_data['shelf_life_fresh']
 age_comb_fresh = inv_life_data['age_combinations_fresh']
 
-# Variable Data
-horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)] #Pipeline: Get through Index
-orders = get_orders(indexes,horizon)
-birds_inv = get_birds(indexes,horizon)
-parts_inv = get_parts(indexes,horizon)
-fresh_inv = parts_inv['Fresh']
-frozen_inv = parts_inv['Frozen']
+## Variable Data
+horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)] # To Do: Get dates through Index
+orders = get_orders(indexes,horizon)  # Function to get sales orders
+birds_inv = get_birds(indexes,horizon) # Function to get birds availability at date,bird_type level
+parts_inv = get_parts(indexes,horizon) # Function to get initial parts inventory at part,bird_type and age level (note :age only for fresh)
+fresh_inv = parts_inv['Fresh']        # Separating fresh inventory
+frozen_inv = parts_inv['Frozen']            # Separating frozen inventory
 
-# MILP Model Initialization
+## MILP Model Initialization #############################################
 model = ConcreteModel()
 
-# Index Definition
-model.T = Set(initialize= list(map(lambda x: str(x),horizon)), ordered = True) # planning horizon* Temporary >> To include initialize in indx
+## Index Definition #####################################################
+model.T = Set(initialize= list(range(len(horizon))), ordered = True) # planning horizon* Temporary >> To include initialize in indx
 model.J = Set(initialize= indexes['cutting_pattern'].keys())   # cutting patterns
 model.P = Set(initialize= indexes['product_group'].keys())     # products
 model.K = Set(initialize= indexes['section'].keys())          # no of sections
@@ -48,80 +74,95 @@ model.P_type = Set(initialize = indexes['product_typ'])          # Type of Produ
 model.M = Set(initialize = indexes['marination'])                # Marination Indicator
 model.C = Set(initialize = indexes['c_priority'])                # Customer Priority Indicator
 
-# Generating combinations
+## Generating combinations ###############################################
 def combination_gen1(model,j):
     global indexes
     return indexes['cutting_pattern'][j]['section']
-model.Jk = Set(model.J, initialize = combination_gen1)
+model.Jk = Set(model.J, initialize = combination_gen1)       # Cutting Pattern >> set(Sections)
 
 def combination_gen2(model,k):
     global indexes
     return indexes['section'][k]['cutting_pattern']
-model.Kj = Set(model.K, initialize = combination_gen2)
+model.Kj = Set(model.K, initialize = combination_gen2)       # Section vs set(Cutting Patterns)  (Inverse of previous)
 
 def combination_gen3(model):
     global bom_data
     return bom_data['iter_combs']['sec_cp']
-model.indx_kj = Set(dimen = 2, initialize = combination_gen3)
+model.indx_kj = Set(dimen = 2, initialize = combination_gen3)    # Combinations of (section,cutting_pattern)
 
 def combination_gen4(model,k,j):
     global bom_data
     return bom_data['sec_nwb_pg'][(k,j)]
-model.Jp1 = Set(model.indx_kj, initialize = combination_gen4)
+model.KJp1 = Set(model.indx_kj, initialize = combination_gen4)   # Non Whole bird products coming from a (section,cutting_pattern)
 
 def combination_gen5(model,k,j):
     global bom_data
     return bom_data['sec_wb_pg'][(k,j)]
-model.Jp2 = Set(model.indx_kj, initialize = combination_gen5)
+model.KJp2 = Set(model.indx_kj, initialize = combination_gen5)   # Whole bird products coming from a (section,cutting_pattern)
 
 def combination_gen6(model,k):
     global indexes
     return indexes['section'][k]['product_group']
-model.Kp = Set(model.K, initialize = combination_gen6)
+model.Kp = Set(model.K, initialize = combination_gen6)     # Products from coming section
 
 def combination_gen7(model):
     global bom_data
     return bom_data['iter_combs']['pgcptyp']
-model.indx_pjr = Set(dimen = 3, initialize = combination_gen7)
+model.indx_pjr = Set(dimen = 3, initialize = combination_gen7) # Combinations of (product,cutting_pattern,bird_type)
 
 def combination_gen8(model):
     global bom_data
     return bom_data['iter_combs']['typ_cp']
-model.indx_rj = Set(dimen = 2, initialize = combination_gen8)
+model.indx_rj = Set(dimen = 2, initialize = combination_gen8)    # Combinations of (bird_type, cutting_pattern)
 
 def combination_gen9(model):
     global bom_data
     return bom_data['iter_combs']['typseccp']
-model.index_rkj = Set(dimen = 3, initialize = combination_gen9)
+model.indx_rkj = Set(dimen = 3, initialize = combination_gen9)   # Combinations of (bird_type,section,cutting_pattern)
 
 def combination_gen10(model,p):
     global bom_data
     return bom_data['iter_combs']['pg_cptyp'][p]
-model.Pjr = Set(model.P,dimen=2,initialize = combination_gen10)
+model.Pjr = Set(model.P,dimen=2,initialize = combination_gen10)    # Combinations of (cutting_pattern, bird_type) that yield product P
 
 def combination_gen11(model,r,j):
     global bom_data
     return bom_data['iter_combs']['cptyp_pg'][(j,r)]
-model.RJp = Set(model.indx_rj,initialize = combination_gen11)
+model.RJp = Set(model.indx_rj,initialize = combination_gen11)  # Products yielded by a particular (bird_type,cutting_pattern) (Inverse of previous)
 
 def combination_gen12(model):
     global age_comb_fresh
     return age_comb_fresh
-model.INV_Fresh = Set(dimen = 3, initialize=combination_gen12)
+model.INV_Fresh = Set(dimen = 3, initialize=combination_gen12)   # For fresh products inventory index with age (product,bird_type,age) where age lies in range [1,shelf_life]
 
-# Loading Input Parameters
+def combination_gen13(model):   # This can be cached >>> To Do
+    my_set = set()
+    for r,k,j in model.indx_rkj:
+        in_PG = set(model.KJp1[k,j])
+        if in_PG == set():
+            my_set.add((r,k,j,-1))
+        else:
+            for grp in in_PG:
+                my_set.add((r,k,j,grp))
+    return my_set
+model.indx_rkjp = Set(dimen = 4, initialize = combination_gen13)     # Combination of (bird type,section,cutting_pattern,product)
+
+## Loading Input Parameters #############################################
+
 def inv_gen1(model,t,r):
     global birds_inv
-    return birds_inv[(t,r)]
-model.H = Param(model.T, model.R, initialize = inv_gen1)
+    global horizon
+    dt = str(horizon[t])
+    return birds_inv[(dt,r)]
+model.H = Param(model.T, model.R, initialize = inv_gen1)         # availability of birds of type r at time t
 
-def inv_gen2(model,p,r,l):
+def inv_gen2(model,p,r,l):  # Opening Inventory
     global fresh_inv
     if (p,r,l) in fresh_inv.keys():
         return fresh_inv[(p,r,l)]
     else:
         return 0
-model.inv_fresh = Param(model.INV_Fresh, initialize = inv_gen2)
+model.initial_inv_fresh = Param(model.INV_Fresh, initialize = inv_gen2)     # Initial inventory of fresh products p of bird type r  with age l (in days)
 
 def inv_gen3(model,p,r):
     global frozen_inv
@@ -129,20 +170,26 @@ def inv_gen3(model,p,r):
         return frozen_inv[(p,r)]
     else:
         return 0
-model.inv_frozen = Param(model.P,model.R, initialize = inv_gen3)
+model.initial_inv_frozen = Param(model.P,model.R, initialize = inv_gen3)     # Initial inventory of frozen product p of bird type r
 
-def sales_gen1(model,t,cp,p,r,pt,m):
+def order_gen1(model,t,cp,p,r,pt,m):
     global orders
-    if (t,cp,p,r,pt,m) in orders.keys():
-        return orders[(t,cp,p,r,pt,m)]
+    global horizon
+    dt = str(horizon[t])
+    if (dt,cp,p,r,pt,m) in orders.keys():
+        return orders[(dt,cp,p,r,pt,m)]
     else:
         return 0
-model.sales_order = Param(model.T,model.C,model.P,model.R,model.P_type,model.M, initialize = sales_gen1)
+model.sales_order = Param(model.T,model.C,model.P,model.R,model.P_type,model.M, initialize = order_gen1)   # Sales order (day,customer_priority, product,bird_type, fresh/frozen, marination (1/0))
+
+def order_gen2(model,t):
+    return 10
+model.further_proessing = Param(model.T, initialize = order_gen2)   # Demand of fresh products for further processing
 
 def yield_gen(model,p,j,r):
     global bom_data
     return bom_data['yield_data'][(p,j,r)]['yld']
-model.yd = Param(model.indx_pjr, initialize = yield_gen)
+model.yd = Param(model.indx_pjr, initialize = yield_gen)    # Yield of product p from bird type r at cutting pattern j
 
 def shelflife_gen(model,p,r): # Only Fresh
     global shelf_life_fresh
@@ -184,26 +231,160 @@ def cost_gen5(model,p,r,t,m):
     return cost_data['selling_price'][(p,r,t,m)]
 model.selling_price = Param(model.P,model.R,model.P_type,model.M, initialize = cost_gen5)
 
+## Variable Objects #######################################
 
-"""
-To check : Effect of Freezing on weight
-To check : Effect of Marination on weight
+model.z = Var(model.T, model.R, domain= NonNegativeIntegers)               # no of carcass r processed in period T
+model.zk = Var(model.T, model.R, model.K, domain = NonNegativeIntegers)   # Number of k section produced by carcass type R
+model.zkj = Var(model.T, model.indx_rkj, domain = NonNegativeIntegers)  # Number of times cutting pattern j is applied on section k of carcass type R
+model.zj = Var(model.T, model.indx_rj, domain = NonNegativeIntegers)     # Number of times cutting pattern j is applied on bird of size R
 
-bom_data = {'yield_data':yd,
-            'sec_nwb_pg':sc_pg1,
-            'sec_wb_pg':sc_pg2,
-            'iter_combs':{
-            'sec_cp':sec_cp_comb,
-            'typ_cp':typ_cp_comb,
-            'pgcptyp':pgcptyp_comb,
-            'typseccp':typseccp_comb,
-            'cptyp_pg':cptyp_pg_comb,
-            'pg_cptyp':pg_cptyp_comb}}
+model.xpr = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+model.ifs = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Auxillary Inv Fresh
+model.ifz = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Auxillary Inv Frozen (Aeging Diff not considered)
+model.xpjr = Var(model.T, model.indx_pjr, domain = NonNegativeReals)
 
-indexes = {'bird_type':typ_dct,
-           'cutting_pattern':cp_dct,
-           'section':sec_dct,
-           'product_group':pg_dct}
+model.x_freezing = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+model.x_marination = Var(model.T,model.P,model.R, domain = NonNegativeReals)
+model.slack_orders = Var(model.T,model.C,model.P,model.R,model.P_type,model.M, domain = NonNegativeReals)
 
-Flow Chart for Demand Matrix Generation and Inventory Update
-"""
+model.u_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+model.v_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+model.um_fresh = Var(model.T,model.P, model.R, domain = NonNegativeReals)
+model.vm_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+model.u_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+model.v_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)
+
+## Constraints ##############################################
+
+def carcass_availability(model,t,r):
+    return model.z[t,r] <= model.H[t,r]
+model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)
+
+def carcass_to_section(model,t,r,k):
+    return model.zk[t,r,k] == model.z[t,r]
+model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)
+
+def carcass_in_cutpattern(model,t,r,k):
+    lst = [j0 for r0,k0,j0 in model.indx_rkj if r0 == r and k0 == k and j0 in model.Kj[k]]
+    return sum(model.zkj[t,r,k,j] for j in lst) == model.zk[t,r,k]
+model.A2Constraint = Constraint(model.T, model.R, model.K, rule = carcass_in_cutpattern)
+
+def cutting_pattern_count_gen(model,t,r,k,j):
+    return model.zj[t,r,j] >= model.zkj[t,r,k,j]
+model.A3Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_count_gen)
+
+def cutting_pattern_count_limiter(model,t,r,j):  # Will become redundant if z is in min(obj)
+    return model.zj[t,r,j] <= sum(model.zkj[t,r,k,j] for k in model.Jk[j])
+model.A4Constraint = Constraint(model.T, model.indx_rj, rule = cutting_pattern_count_limiter)
+
+def cutting_pattern_balancer(model,t,r,k,j):
+    return model.zkj[t,r,k,j] == model.zj[t,r,j]
+model.A5Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer)
+
+def product_yield_eqn(model,t,r,k,j,p):
+    all_items = set(model.RJp[r,j])
+    products1 = set([p])
+    products2 = set(model.KJp2[k,j])
+    products = products1.union(products2)
+    products = all_items.intersection(products)  # >> This step will any remove any p = -1 coming from indx_rjkp
+    if not products:
+        return Constraint.Skip
+    else:
+        return model.zkj[t,r,k,j] == sum(model.xpjr[t,p,j,r]/model.yd[p,j,r] for p in products)
+model.A7Constraint = Constraint(model.T, model.indx_rkjp, rule = product_yield_eqn)
+
+## Expressions ##########################################
+
+def expression_gen1(model,t,p,r):
+    return sum(model.xpjr[t,p,j1,r] for p1,j1,r1 in model.indx_pjr if p1 == p and r1 == r)
+model.fresh_part_production = Constraint(model.T,model.P,model.R, rule = expression_gen1)
+
+def expression_gen2(model,t,p,r):
+    return model.x_freezing[t,p,r] + model.x_marination[t,p,r] + model.u_fresh[t,p,r]
+model.inv_usage = Expression(model.T, model.P, model.R, rule = expression_gen2)
+
+def expression_gen3(model,t,p,r,l):
+    if t == 0:
+        return model.initial_inv_fresh[p,r,l]
+    else:
+        if l == 1:
+            return model.fresh_part_production[t-1,p,r] - (model.inv_usage[t-1,p,r] + sum(model.inv_fresh[t-1,p,r,l1] for l1 in range(1,int(model.L[p,r]))))
+        else:
+            return model.inv_fresh[t-1,p,r,l-1]
+model.inv_fresh = Expression(model.T, model.INV_Fresh, rule = expression_gen3)
+
+def expression_gen4(model,t,p,r):
+    return sum(model.inv_fresh[t,p,r,l1] for l1 in range(1,int(model.L[p,r])))
+model.total_inv_fresh = Expression(model.T,model.P,model.R, rule = expression_gen4)
+
+def expression_gen51(model,t,p,r):
+    return model.total_inv_fresh[t,p,r] + model.fresh_part_production[t,p,r] >= model.inv_usage[t,p,r]
+model.expression_gen51 = Constraint(model.T,model.P,model.R, rule = expression_gen51)
+# inv_fresh for all ages + model.fresh_part_production[t,p,r] =< model.inv_usage[t,p,r])
+
+def expression_gen5(model,t,p,r):
+    if t == 0:
+        return model.initial_inv_frozen[p,r]
+    else:
+        return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t,p,r]
+model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen5)
+
+##### Constraints on top of Expressions:
+
+def fresh_requirement_balance(model,t,p,r):
+    return model.u_fresh[t,p,r] + model.v_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C)
+model.requirement_balance1 = Constraint(model.T, model.P, model.R, rule = fresh_requirement_balance)
+
+def fresh_m_requirement_balance1(model,t,p,r):
+    return model.um_fresh[t,p,r] + model.vm_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C)
+model.requirement_balance2 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance1)
+
+def fresh_m_requirement_balance2(model,t,p,r):
+    return model.um_fresh[t,p,r] == model.x_marination[t,p,r]
+model.requirement_balance3 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance2)
+
+def frozen_requirement_balance(model,t,p,r):
+    return model.u_frozen[t,p,r] + model.v_frozen[t,p,r] == sum(model.sales_order[t,c,p,r,'Frozen',m] for c in model.C for m in model.M)
+model.requirement_balance4 = Constraint(model.T, model.P, model.R, rule = frozen_requirement_balance)
+
+def inv_requirement_balance1(model,t,p,r,l):
+    return model.ifs[t,p,r,l] == model.inv_fresh[t,p,r,l]
+model.requirement_balance5 = Constraint(model.T, model.INV_Fresh, rule = inv_requirement_balance1)
+
+def inv_requirement_balance2(model,t,p,r):
+    return model.ifz[t,p,r] == model.inv_frozen[t,p,r]
+model.requirement_balance6 = Constraint(model.T, model.P, model.R, rule = inv_requirement_balance2)
+
+# Freeze Inv at the age = shelf life
+
+# Capacity Freezing
+
+
+
+# Capacity Marination
+
+# Capacity Cutting Pattern Line
+
+# Costing Expressions : selling_gains - Op Cost - Inv holding
+
+###################################  Temporary #########################
+# def force1(model):
+#     return model.zk['2018-06-28',1,1] >= 10
+# model.F1Constraint = Constraint(rule = force1)
+
+def force11(model):
+    return model.x_freezing[0,18,1] == 10
+model.F11Constraint = Constraint(rule = force11)
+
+# def force2(model):
+#     return model.xpjr[0,18,1,1] >= 10
+# model.F2Constraint = Constraint(rule = force2)
+
+def obj(model):
+    return sum(model.inv_fresh[t,p,r,l] for t in model.T for p,r,l in model.INV_Fresh) + sum(model.z[t,r] for t in model.T for r in model.R)
+model.objctve = Objective(rule = obj, sense = minimize)
+
+solution = solve_model(model)
+model = solution[0]
+result = solution[1]
+print(result)

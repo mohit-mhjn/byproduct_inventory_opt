@@ -1,6 +1,6 @@
 prod_group_index,bird_type_index,product_type,inv_age,inventory
-1,1,Fresh,2,10
-1,1,Fresh,3,20
+1,1,Fresh,2,0
+1,1,Fresh,3,0
 1,3,Fresh,3,0
 1,3,Fresh,2,0
 1,4,Fresh,1,0
@@ -104,13 +104,13 @@ prod_group_index,bird_type_index,product_type,inv_age,inventory
 17,4,Fresh,1,0
 17,5,Fresh,5,0
 17,6,Fresh,2,0
-18,1,Fresh,1,0
+18,1,Fresh,1,10
 18,2,Fresh,1,0
 18,3,Fresh,2,0
 18,4,Fresh,4,0
 18,5,Fresh,4,0
 18,6,Fresh,1,0
-19,1,Fresh,5,0
+19,1,Fresh,1,0
 19,2,Fresh,1,0
 19,3,Fresh,3,0
 19,4,Fresh,3,0

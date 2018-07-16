@@ -22,3 +22,5 @@ Process >> cutting,marination,freezing
 4. Object exchange between files is on key values >> Not good for quality, Idea: Define a custom class that will handle the input
 
 5. Alternate Possibilities of Cost and Capacity Parameters(Need to think how to incorporte)
+
+6. Inventory Ageing only for fresh SKU 
