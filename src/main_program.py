@@ -395,9 +395,9 @@ model.holding_cost = Expression(model.T, rule = expression_gen8)
 #     return model.zk['2018-06-28',1,1] >= 10
 # model.F1Constraint = Constraint(rule = force1)
 
-# def force11(model):
-#     return model.x_freezing[0,18,1] == 10
-# model.F11Constraint = Constraint(rule = force11)
+def force11(model):
+    return model.x_freezing[0,18,1] >= 10.56
+model.F11Constraint = Constraint(rule = force11)
 
 # def force2(model):
 #     return model.xpjr[0,18,1,1] >= 10
@@ -428,7 +428,7 @@ for t,(r,k,j) in itertools.product(model.T,model.indx_rkj):
     cutting_pattern_data.append({'date':str(horizon[t]),'bird_type':indexes['bird_type'][r]['bird_type'],'section':indexes['section'][k]['description'],'cutting_pattern':j,'line':indexes['cutting_pattern'][j]['line'], 'pattern_count':model.zkj[t,r,k,j].value })
 cutting_pattern_plan = pandas.DataFrame(cutting_pattern_data)
 cutting_pattern_plan = cutting_pattern_plan[(cutting_pattern_plan.pattern_count > 0)]
-
+cutting_pattern_plan.sort_values(by = ['date','bird_type','pattern_count','section'], inplace = True)
 
 #Output Production and Processing
 production_data1 = []
@@ -448,7 +448,6 @@ freezing_lots = freezing_lots[(freezing_lots.quantity_produced > 0)]
 
 marination_lots = pandas.DataFrame(production_data3)
 marination_lots = marination_lots[(marination_lots.quantity_produced > 0)]
-
 
 inventory_report1 = []
 for t,(p,r,l) in itertools.product(model.T,model.INV_Fresh):
@@ -495,21 +494,31 @@ sales_marination_sku = sales_marination_sku[(sales_marination_sku.orders > 0)]
 sales_frozen_sku = pandas.DataFrame(sales_cost_report3)
 sales_frozen_sku = sales_frozen_sku[(sales_frozen_sku.orders > 0)]
 
-
 cost_report1 = []
 for t in model.T:
     cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t]),'Revenue':value(model.selling_gains[t])})
 cost_summary = pandas.DataFrame(cost_report1)
 
 
+print ("\n\t bird requirement >> \n ")
 print (bird_type_requirement)
+print ("\n\t cutting_pattern_plan >> \n ")
 print (cutting_pattern_plan)
+print ("\n\t fresh production >> \n ")
 print (fresh_production)
+print ("\n\t freezing_lots >> \n ")
 print (freezing_lots)
+print ("\n\t marination_lots >> \n ")
 print (marination_lots)
+print ("\n\t Projected Fresh Inventory >> \n ")
 print (fresh_inventory_report)
+print ("\n\t Projected Frozen Inventory >> \n ")
 print (frozen_inventory_report)
+print ("\n\t Demand Fulfillment Plan Fresh >> \n ")
 print (sales_fresh_sku)
+print ("\n\t Demand Fulfillment Plan Frozen >> \n ")
 print (sales_frozen_sku)
+print ("\n\t Demand Fulfillment Plan Fresh with Marination >> \n ")
 print (sales_marination_sku)
+print ("\n\t Summary of Projected Costs >> \n ")
 print (cost_summary)
