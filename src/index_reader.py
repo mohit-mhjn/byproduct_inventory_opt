@@ -21,7 +21,20 @@ indexes dictionary is the collection of all above
 indexes = {'bird_type':typ_dct,
            'cutting_pattern':cp_dct,
            'section':sec_dct,
-           'product_group':pg_dct}
+           'product_group':pg_dct,
+           'marination': marination,
+           'c_priority': c_priority,
+           'product_typ': product_typ}
+
+bird_type = { bird_typ_index : {'bird_type': 'S/M/ML/L/XL', 'dist_p': distribution_area , 'abs_weight': avg weight in abs term }}
+cutting_pattern = { cp_index: {'capacity_kgph': , 'description': 'Not Available', 'section': [1, 2, 3], 'rate': , 'operational_cost': , 'line': }}
+section = {section_index : {'product_group': [32, 18, 19, 22, 29, 30, 31], 'cutting_pattern': [1, 2, 3, 4, 5, 6, 7, 8], 'description': 'Section 1'}}
+product_group = {pg_index: {'product_group': 'BL BFLY BREAST', 'section': [2], 'n_parts': 1}}
+marination = [0,1]
+c_priority = [1,2]
+product_typ = ["Fresh","Frozen"]
+
+####################################################################
 
 Used pickle for object serialization, bcoz json is converting int keys to string
 

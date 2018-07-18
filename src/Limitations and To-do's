@@ -3,7 +3,7 @@
 2. Data Consistancy across Indexes, Coef and BOM >> Develop a checker and Error Logger for that like PP
 
 Eg: If a product Group is there it has to be related with a cutting pattern and yield for corresponding size
-A few more similar cases, will list them here soon
+A few more similar cases, will exhaustively list them here soon
 
 >> Inventory with product_group, bird_type and product_type
 >> Birds available with defined size/type of bird
@@ -23,4 +23,12 @@ Process >> cutting,marination,freezing
 
 5. Alternate Possibilities of Cost and Capacity Parameters(Need to think how to incorporte)
 
-6. Inventory Ageing only for fresh SKU 
+6. Inventory Ageing only for fresh SKU
+
+7. Scenario objectives are predefined. Not flexible
+
+8. As of date (17 Jul 2018), Frozen SKU's are not subjected to marination
+
+9. Inventory data in value terms (COGS)
+
+10. Service Level Constraints >> 

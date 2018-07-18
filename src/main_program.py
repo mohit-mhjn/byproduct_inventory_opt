@@ -1,8 +1,10 @@
+print ("Start")
+print ("\n\t<<<< May the force be with you \m/ >>>>\n")
 """
 Note: Compatible with Python 3
 
 This file handles the main pyomo MILP that comprises of required Sets, Constraints, Expression, Param and Model objects.
-Concrete model is used for instance creation
+Concrete model is used for pyomo instance creation
 
 Loading Data in concrete model:
 To load the static data cached data is imported from the respective reader modules
@@ -20,9 +22,11 @@ Assumptions:
 3. Frozen product doesn't age (long shelf life in comparison with planning horizon)
 
 To Do:
-1. cache r,j,k,p combinations
+1. process logger
 2. planning horizon include in indexes
-3. Data Post processing : Map indexes to their description
+3. Data Post processing : Map indexes to their description >> Partially Done : Need to move the piece to separate program + imporve result formatting >>
+4. Warehouse Capacity
+5.
 """
 
 # Setting Up Environment
@@ -31,15 +35,15 @@ directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 import datetime
 from pyomo.environ import *
-import itertools
-import pandas
-# Importing Input Data
+
+# Importing Data processing modules
 from sales_order_reader import get_orders
 from inventory_reader import get_birds, get_parts
 from index_reader import read_masters
 from BOM_reader import read_combinations
 from coef_param import read_coef
 from ageing_param import read_inv_life
+from postprocessor import summarize_results
 
 # Importing Solver Fucntion
 from solutionmethod import solve_model
@@ -138,15 +142,8 @@ def combination_gen12(model):
 model.INV_Fresh = Set(dimen = 3, initialize=combination_gen12)   # For fresh products inventory index with age (product,bird_type,age) where age lies in range [1,shelf_life]
 
 def combination_gen13(model):   # This can be cached >>> To Do
-    my_set = set()
-    for r,k,j in model.indx_rkj:
-        in_PG = set(model.KJp1[k,j])
-        if in_PG == set():
-            my_set.add((r,k,j,-1))
-        else:
-            for grp in in_PG:
-                my_set.add((r,k,j,grp))
-    return my_set
+    global bom_data
+    return bom_data['iter_combs']['typseccpp']
 model.indx_rkjp = Set(dimen = 4, initialize = combination_gen13)     # Combination of (bird type,section,cutting_pattern,product)
 
 ## Loading Input Parameters #############################################
@@ -245,6 +242,8 @@ model.ifs = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Auxil
 model.ifz = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Auxillary variable to check Inv Frozen (Aeging Diff not considered)
 model.xpjr = Var(model.T, model.indx_pjr, domain = NonNegativeReals)     # Quantity of product P of bird type R produced in time slot 't' with cutting pattern J
 
+model.il = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Fresh Inventory of Age L used
+
 model.x_freezing = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Quantity of Product P of bird type R converted from Fresh to Frozen
 model.x_marination = Var(model.T,model.P,model.R, domain = NonNegativeReals)    # Quantity of Product P of bird type R converted from Fresh to Fresh Marinated
 
@@ -294,89 +293,98 @@ def product_yield_eqn(model,t,r,k,j,p):
         return model.zkj[t,r,k,j] == sum(model.xpjr[t,p,j,r]/model.yd[p,j,r] for p in products)
 model.A7Constraint = Constraint(model.T, model.indx_rkjp, rule = product_yield_eqn)        # Conversion of a cut-up into a product group
 
-## Expressions ##########################################
+def fresh_part_production(model,t,p,r):
+    return model.xpr[t,p,r] == sum(model.xpjr[t,p,j1,r] for p1,j1,r1 in model.indx_pjr if p1 == p and r1 == r)
+model.A8Constraint = Constraint(model.T, model.P, model.R, rule = fresh_part_production)           # Summation of product belonging to a bird type obtained from agreegation of all freshly produced lots
+
+## Inventroy Balance Equations and Constraints ##########################################
 
 def expression_gen1(model,t,p,r):
-    return sum(model.xpjr[t,p,j1,r] for p1,j1,r1 in model.indx_pjr if p1 == p and r1 == r)
-model.fresh_part_production = Expression(model.T, model.P, model.R, rule = expression_gen1)
-
-def expression_gen2(model,t,p,r):
     return model.x_freezing[t,p,r] + model.x_marination[t,p,r] + model.u_fresh[t,p,r]
-model.inv_usage = Expression(model.T, model.P, model.R, rule = expression_gen2)
+model.fresh_inv_used = Expression(model.T, model.P, model.R, rule = expression_gen1)        # Quantity of Fresh Inventory used is equal to inv q used in freezing + q used in marination + q sold in fresh form
 
-def expression_gen3(model,t,p,r,l):
-    if t == 0:
+def inventory_used_for_age(model,t,p,r):                                                    # Quantity of Fresh Inv used = Qunaity of Fresh Inv used for all ages
+    return sum(model.il[t,p,r,l] for l in range(int(model.L[p,r]) + 1)) == model.fresh_inv_used[t,p,r]
+model.A9Constraint = Constraint(model.T, model.P, model.R, rule = inventory_used_for_age)
+
+def expression_gen2(model,t,p,r,l):
+    if t == 0 or l == 0:                                                              # opening inv == 0 at age 0 (initial value without production)
         return model.initial_inv_fresh[p,r,l]
     else:
         if l == 1:
-            return model.fresh_part_production[t-1,p,r] - (model.inv_usage[t-1,p,r] + sum(model.inv_fresh[t-1,p,r,l1] for l1 in range(1,int(model.L[p,r]))))
+            return model.xpr[t-1,p,r] - model.il[t-1,p,r,0]       # Inventroy produced at t is aged == 0
         else:
-            return model.inv_fresh[t-1,p,r,l-1]
-model.inv_fresh = Expression(model.T, model.INV_Fresh, rule = expression_gen3)
+            return model.fresh_inv_qoh[t-1,p,r,l-1] - model.il[t-1,p,r,l-1]
+model.fresh_inv_qoh = Expression(model.T, model.INV_Fresh, rule = expression_gen2)       # Expression to derive Fresh Inventory(opening) quantity_on_hand(qoh) by age
 
-def expression_gen4(model,t,p,r):
-    return sum(model.inv_fresh[t,p,r,l1] for l1 in range(1,int(model.L[p,r])))
-model.total_inv_fresh = Expression(model.T,model.P,model.R, rule = expression_gen4)
-
-def expression_gen5(model,t,p,r):
+def expression_gen3(model,t,p,r):
     if t == 0:
         return model.initial_inv_frozen[p,r]
     else:
         return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r]
-model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen5)
-
-##### Constraints on top of Expressions:
-
-def limit_inv_usage(model,t,p,r):
-    return model.total_inv_fresh[t,p,r] + model.fresh_part_production[t,p,r] >= model.inv_usage[t,p,r]
-model.A8Constraint = Constraint(model.T,model.P,model.R, rule = limit_inv_usage)
-# inv_fresh for all ages + model.fresh_part_production[t,p,r] =< model.inv_usage[t,p,r])
-
-def fresh_requirement_balance(model,t,p,r):
-    return model.u_fresh[t,p,r] + model.v_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C)
-model.requirement_balance1 = Constraint(model.T, model.P, model.R, rule = fresh_requirement_balance)
-
-def fresh_m_requirement_balance1(model,t,p,r):
-    return model.um_fresh[t,p,r] + model.vm_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C)
-model.requirement_balance2 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance1)
-
-def fresh_m_requirement_balance2(model,t,p,r):
-    return model.um_fresh[t,p,r] == model.x_marination[t,p,r]
-model.requirement_balance3 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance2)
-
-def frozen_requirement_balance(model,t,p,r):
-    return model.u_frozen[t,p,r] + model.v_frozen[t,p,r] == sum(model.sales_order[t,c,p,r,'Frozen',m] for c in model.C for m in model.M)
-model.requirement_balance4 = Constraint(model.T, model.P, model.R, rule = frozen_requirement_balance)
+model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen3)            # Expression to derive Frozen Inventroy(opening) quantity on hand total without age
 
 def inv_requirement_balance1(model,t,p,r,l):
-    return model.ifs[t,p,r,l] == model.inv_fresh[t,p,r,l]
-model.requirement_balance5 = Constraint(model.T, model.INV_Fresh, rule = inv_requirement_balance1)
+    return model.ifs[t,p,r,l] == model.fresh_inv_qoh[t,p,r,l]
+model.A10Constraint = Constraint(model.T, model.INV_Fresh, rule = inv_requirement_balance1)   # Fresh Inventory Variable which makes fresh_inv_qoh >= 0
 
 def inv_requirement_balance2(model,t,p,r):
     return model.ifz[t,p,r] == model.inv_frozen[t,p,r]
-model.requirement_balance6 = Constraint(model.T, model.P, model.R, rule = inv_requirement_balance2)
+model.A11Constraint = Constraint(model.T, model.P, model.R, rule = inv_requirement_balance2)   # Frozen Inventory Variable which makes inv_frozen >= 0
 
-# Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
-def freeze_expiring_inventory(model,t,p,r,l):
-    if model.L[p,r] == l:
-        return model.x_freezing[t,p,r] >= model.inv_fresh[t,p,r,l]
-    else:
+def expression_gen4(model,t,p,r):
+    return sum(model.fresh_inv_qoh[t,p,r,l1] for l1 in range(int(model.L[p,r])+1))         # Total Inventory(opening) Fresh == sum of inventory at all ages
+model.total_inv_fresh = Expression(model.T,model.P,model.R, rule = expression_gen4)
+
+def limit_inv_usage(model,t,p,r):                                                           # Inventory Usage <= Inital Available + Usage
+    return model.total_inv_fresh[t,p,r] + model.xpr[t,p,r] >= model.fresh_inv_used[t,p,r]
+model.A12Constraint = Constraint(model.T, model.P, model.R, rule = limit_inv_usage)
+
+def balance_inv_usage(model,t,p,r):                                                        # Conserve Inventory Quantity between two consecutive days
+    if t == 0:                                                                              # inv_fresh for all ages + model.fresh_part_production[t,p,r] =< model.inv_usage[t,p,r])
         return Constraint.Skip
-model.A9Constraint = Constraint(model.T, model.INV_Fresh, rule = freeze_expiring_inventory)
+    else:
+        return model.total_inv_fresh[t-1,p,r] + model.xpr[t-1,p,r] - model.fresh_inv_used[t-1,p,r] == model.total_inv_fresh[t,p,r]
+model.A12_1Constraint = Constraint(model.T, model.P, model.R, rule = balance_inv_usage)
+
+def freeze_expiring_inventory(model,t,p,r):                                         # Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
+    max_life = model.L[p,r]
+    return model.fresh_inv_qoh[t,p,r,max_life] - model.fresh_inv_used[t,p,r] <= 0
+model.A13Constraint = Constraint(model.T, model.P, model.R, rule = freeze_expiring_inventory)
+
+### Demand Satisfaction Constraints
+
+def fresh_requirement_balance(model,t,p,r):
+    return model.u_fresh[t,p,r] + model.v_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C)
+model.requirement_balance1 = Constraint(model.T, model.P, model.R, rule = fresh_requirement_balance)    # Sold + Unsold Fresh Without Marination
+
+def fresh_m_requirement_balance1(model,t,p,r):
+    return model.um_fresh[t,p,r] + model.vm_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C)
+model.requirement_balance2 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance1)   # Sold + Unsold Fresh with Marination
+
+def fresh_m_requirement_balance2(model,t,p,r):
+    return model.um_fresh[t,p,r] == model.x_marination[t,p,r]
+model.requirement_balance3 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance2)    # Marination process is Make to Order
+
+def frozen_requirement_balance(model,t,p,r):
+    return model.u_frozen[t,p,r] + model.v_frozen[t,p,r] == sum(model.sales_order[t,c,p,r,'Frozen',m] for c in model.C for m in model.M)
+model.requirement_balance4 = Constraint(model.T, model.P, model.R, rule = frozen_requirement_balance)    # Sold + Unsold Frozen Products without Marination
+
+## Capacity Constraints ###################################  (Checking on UOM Pending)
 
 def capacity_gen1(model,t,p,r):
     return model.x_freezing[t,p,r] <= model.process_capacity['freezing']*24
-model.A10Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen1)
+model.A14Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen1)
 
 def capacity_gen2(model,t,p,r):
     return model.x_marination[t,p,r] <= model.process_capacity['marination']*24
-model.A11Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen2)
+model.A15Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen2)
 
 def capacity_gen3(model,t,j):
     return sum(model.zkj[t,r,k,j] for r,k,j1 in model.indx_rkj if j == j1) <= 24*model.cutting_capacity[j]
-model.A12Constraint = Constraint(model.T, model.J, rule  = capacity_gen3)
+model.A16Constraint = Constraint(model.T, model.J, rule  = capacity_gen3)
 
-# Costing Expressions : selling_gains - Op Cost - Inv holding
+# Costing Expressions : selling_gains - Op Cost - Inv holding ##########################
 
 def expression_gen6(model,t):
     return sum(model.u_fresh[t,p,r]*model.selling_price[p,r,'Fresh',0] + model.um_fresh[t,p,r]*model.selling_price[p,r,'Fresh',1] + model.u_frozen[t,p,r]*model.selling_price[p,r,'Frozen',0] for p in model.P for r in model.R)
@@ -384,141 +392,45 @@ model.selling_gains = Expression(model.T, rule = expression_gen6)   # Calculated
 
 def expression_gen7(model,t):
     return sum(sum(model.zkj[t,r,k,j] for r,k,j1 in model.indx_rkj if j == j1)*model.unit_cutting_cost[j] for j in model.J) + sum(model.x_freezing[t,p,r]*model.unit_freezing_cost + model.x_marination[t,p,r]*model.unit_marination_cost for p in model.P for r in model.R)
-model.operations_cost = Expression(model.T, rule = expression_gen7)
+model.operations_cost = Expression(model.T, rule = expression_gen7)   # Calculating total cost incurred in processing in cutup + freezing + marination process
 
 def expression_gen8(model,t):
     return sum(model.total_inv_fresh[t,p,r]*model.inventory_holding_cost[p,r,'Fresh'] + model.ifz[t,p,r]*model.inventory_holding_cost[p,r,'Frozen'] for p in model.P for r in model.R)
-model.holding_cost = Expression(model.T, rule = expression_gen8)
+model.holding_cost = Expression(model.T, rule = expression_gen8)        # Calculation total Cost Incurred to hold the imbalance inventory
 
-###################################  Temporary #########################
+## Temporary Forcing Constraints (Testing Purpose) #########################
+
 # def force1(model):
 #     return model.zk['2018-06-28',1,1] >= 10
 # model.F1Constraint = Constraint(rule = force1)
 
 def force11(model):
-    return model.x_freezing[0,18,1] >= 10.56
+    return model.x_freezing[0,7,1] == 10
 model.F11Constraint = Constraint(rule = force11)
 
-# def force2(model):
-#     return model.xpjr[0,18,1,1] >= 10
-# model.F2Constraint = Constraint(rule = force2)
+# def force12(model):
+#     return sum(model.x_marination[t,18,1] for t in model.T) == 10
+# model.F111Constraint = Constraint(rule = force12)
+
+# def stop_freezing(model):
+#     return sum(model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R) == 0
+# model.F12Constraint = Constraint(rule = stop_freezing)
+
+## Objective Function and Scenario Selection ############################################
 
 def obj(model):
-    return sum(model.z[t,r] for t in model.T for r in model.R)
+    return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 model.objctve = Objective(rule = obj, sense = minimize)
+
+## Using Solver Method ##################################################
 
 solution = solve_model(model)
 model = solution[0]
 result = solution[1]
-# print(result)
+#print(result)
 
-############################################################## post processing to print result tables >>
+## post processing to print result tables #######################################################
+summarize_results(model,horizon,indexes,print_tables=False,keep_files = False)
 
-# Bird Type Requirement
-bird_req_data = []
-for t,r in itertools.product(model.T,model.R):
-    bird_req_data.append({'date':str(horizon[t]),'bird_size':indexes['bird_type'][r]['bird_type'],'req_number':model.z[t,r].value})
-bird_type_requirement = pandas.DataFrame(bird_req_data)
-bird_type_requirement = bird_type_requirement[(bird_type_requirement.req_number > 0)]
-
-
-#Cutting Pattern Plan
-cutting_pattern_data = []
-for t,(r,k,j) in itertools.product(model.T,model.indx_rkj):
-    cutting_pattern_data.append({'date':str(horizon[t]),'bird_type':indexes['bird_type'][r]['bird_type'],'section':indexes['section'][k]['description'],'cutting_pattern':j,'line':indexes['cutting_pattern'][j]['line'], 'pattern_count':model.zkj[t,r,k,j].value })
-cutting_pattern_plan = pandas.DataFrame(cutting_pattern_data)
-cutting_pattern_plan = cutting_pattern_plan[(cutting_pattern_plan.pattern_count > 0)]
-cutting_pattern_plan.sort_values(by = ['date','bird_type','pattern_count','section'], inplace = True)
-
-#Output Production and Processing
-production_data1 = []
-production_data2 = []
-production_data3 = []
-
-for t,p,r in itertools.product(model.T, model.P, model.R):
-    production_data1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':value(model.fresh_part_production[t,p,r]),'UOM':'KG'})
-    production_data2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':model.x_freezing[t,p,r].value,'UOM':'KG'})
-    production_data3.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':model.x_marination[t,p,r].value,'UOM':'KG'})
-
-fresh_production = pandas.DataFrame(production_data1)
-fresh_production = fresh_production[(fresh_production.quantity_produced > 0)]
-
-freezing_lots = pandas.DataFrame(production_data2)
-freezing_lots = freezing_lots[(freezing_lots.quantity_produced > 0)]
-
-marination_lots = pandas.DataFrame(production_data3)
-marination_lots = marination_lots[(marination_lots.quantity_produced > 0)]
-
-inventory_report1 = []
-for t,(p,r,l) in itertools.product(model.T,model.INV_Fresh):
-    inventory_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'age_days':l,'quantity_on_hand':model.ifs[t,p,r,l].value,'UOM':'KG'})
-fresh_inventory_report = pandas.DataFrame(inventory_report1)
-fresh_inventory_report = fresh_inventory_report[(fresh_inventory_report.quantity_on_hand > 0)]
-
-inventory_report2 = []
-for t,p,r in itertools.product(model.T,model.P, model.R):
-    inventory_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_on_hand':model.ifz[t,p,r].value,'UOM':'KG'})
-frozen_inventory_report = pandas.DataFrame(inventory_report2)
-frozen_inventory_report = frozen_inventory_report[(frozen_inventory_report.quantity_on_hand > 0)]
-
-sales_cost_report1 = []
-sales_cost_report2 = []
-sales_cost_report3 = []
-
-for t,p,r in itertools.product(model.T,model.P,model.R):
-    fresh_satisfied_q = model.u_fresh[t,p,r].value
-    fresh_unsatisfied_q = model.v_fresh[t,p,r].value
-    orders1 = sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C)
-    selling_gains1 = model.selling_price[p,r,'Fresh',0]*fresh_satisfied_q
-    sales_cost_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders1),'satisfied':fresh_satisfied_q,'unsatisfied':fresh_unsatisfied_q,'selling_gains':value(selling_gains1)})
-
-    marinated_satisfied_q = model.um_fresh[t,p,r].value
-    marinated_unsatisfied_q = model.vm_fresh[t,p,r].value
-    orders2 = sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C)
-    selling_gains2 = model.selling_price[p,r,'Fresh',1]*marinated_satisfied_q
-    sales_cost_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders2),'satisfied':marinated_satisfied_q,'unsatisfied':marinated_unsatisfied_q,'selling_gains':value(selling_gains2)})
-
-    frozen_satisfied_q = model.u_frozen[t,p,r].value
-    frozen_unsatisfied_q = model.v_frozen[t,p,r].value
-    orders3 = sum(model.sales_order[t,c,p,r,'Frozen',0] for c in model.C)
-    selling_gains3 = model.selling_price[p,r,'Frozen',0]*frozen_satisfied_q
-    sales_cost_report3.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders3),'satisfied':frozen_satisfied_q,'unsatisfied':frozen_unsatisfied_q,'selling_gains':value(selling_gains3)})
-
-
-sales_fresh_sku = pandas.DataFrame(sales_cost_report1)
-sales_fresh_sku = sales_fresh_sku[(sales_fresh_sku.orders > 0)]
-
-sales_marination_sku = pandas.DataFrame(sales_cost_report2)
-sales_marination_sku = sales_marination_sku[(sales_marination_sku.orders > 0)]
-
-sales_frozen_sku = pandas.DataFrame(sales_cost_report3)
-sales_frozen_sku = sales_frozen_sku[(sales_frozen_sku.orders > 0)]
-
-cost_report1 = []
-for t in model.T:
-    cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t]),'Revenue':value(model.selling_gains[t])})
-cost_summary = pandas.DataFrame(cost_report1)
-
-
-print ("\n\t bird requirement >> \n ")
-print (bird_type_requirement)
-print ("\n\t cutting_pattern_plan >> \n ")
-print (cutting_pattern_plan)
-print ("\n\t fresh production >> \n ")
-print (fresh_production)
-print ("\n\t freezing_lots >> \n ")
-print (freezing_lots)
-print ("\n\t marination_lots >> \n ")
-print (marination_lots)
-print ("\n\t Projected Fresh Inventory >> \n ")
-print (fresh_inventory_report)
-print ("\n\t Projected Frozen Inventory >> \n ")
-print (frozen_inventory_report)
-print ("\n\t Demand Fulfillment Plan Fresh >> \n ")
-print (sales_fresh_sku)
-print ("\n\t Demand Fulfillment Plan Frozen >> \n ")
-print (sales_frozen_sku)
-print ("\n\t Demand Fulfillment Plan Fresh with Marination >> \n ")
-print (sales_marination_sku)
-print ("\n\t Summary of Projected Costs >> \n ")
-print (cost_summary)
+print ("End")
+exit()

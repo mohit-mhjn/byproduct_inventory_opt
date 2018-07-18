@@ -35,8 +35,11 @@ Required combinations for iteration in model:
 1. section vs cutting_pattern: sec_cp_comb
 2. (cutting_pattern,bird_type) vs product_group : cptyp_pg_comb
 3. product_group vs (cutting_pattern,bird_type) : pg_cptyp_comb
+4. (bird type, cutting pattern) : typ_cp_comb
+5. (bird_type,section,cutting_pattern,product_group) : typseccpp
 
-Ref:
+Cached Object Ref:
+
 bom_data = {'yield_data':yd,
             'sec_nwb_pg':sc_pg1,
             'sec_wb_pg':sc_pg2,
@@ -46,7 +49,14 @@ bom_data = {'yield_data':yd,
             'pgcptyp':pgcptyp_comb,
             'typseccp':typseccp_comb,
             'cptyp_pg':cptyp_pg_comb,
+            'typseccpp': my_set,
             'pg_cptyp':pg_cptyp_comb}}
+
+yield_data = {(product_group, cutting_pattern, bird_type):{"yld": yield_percent_of_product_group ,"yield_p": yield_per_part } }
+sec_nwb_pg = {'section':set(non whole bird product_groups)}
+sec_wb_pg = {'section':set(whole bird product_group)}
+
+################################################################################
 
 Pickle is used here to serialize the dict object (couln't use json because the keys are tuples)
 
@@ -126,6 +136,15 @@ def update_combinations():
         for rn in lst:
             typseccp_comb.add((rn,i[0],i[1]))
 
+    my_set = set()
+    for (r,k,j) in typseccp_comb:
+        in_PG = set(sc_pg1[(k,j)])
+        if in_PG == set():
+            my_set.add((r,k,j,-1))
+        else:
+            for grp in in_PG:
+                my_set.add((r,k,j,grp))
+
     # Creating a python object of all the data required >> Try Custom Class Here
     bom_data = {'yield_data':yd,
                 'sec_nwb_pg':sc_pg1,
@@ -136,6 +155,7 @@ def update_combinations():
                 'pgcptyp':pgcptyp_comb,
                 'typseccp':typseccp_comb,
                 'cptyp_pg':cptyp_pg_comb,
+                'typseccpp':my_set,
                 'pg_cptyp':pg_cptyp_comb}}
 
     # Dump object in a cache file

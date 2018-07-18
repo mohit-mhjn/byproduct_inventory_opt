@@ -13,6 +13,19 @@ Ref:
 capacity_dct is the object that stores the capacity data
 cost_dct is the object that sotres the costing data
 
+capacity_dct : { "marination": marination_capacity,
+                "cutting_pattern": {"cutting_pattern_index":capacity},
+                "freezing": freezing_capacity},
+
+cost_dct : { "selling_price":{(product_group,bird_type,fresh/frozen,marination >>  0/1): selling price value,
+            "cutting_cost": {'cutting_pattern_index': unit_cutting_cost_value},
+            "holding_cost": {(product_group,bird_type,fresh/frozen): holding cost value},
+            "freezing_cost": unit_freezing_cost
+            "marination_cost": unit_marination_cost}
+
+##############################################################################################
+
+
 While updating the data, the timestamp of the update event is stored in update_status file
 
 To Do:
@@ -79,7 +92,8 @@ def update_coef():
 
     print("SUCCESS : cost_coef updated!")
     print("SUCCESS : capacity_coef updated!")
-
+    print (capacity_dct)
+    print (cost_dct)
     return None
 
 def read_coef():

@@ -15,6 +15,20 @@ Used pickle for object serialization, bcoz of tuple type keys
 
 While updating the data, the timestamp of the update event is stored in update_status file
 
+Cached object Ref:
+life_dct = {
+    'shelf_life_fresh':shelf_life,
+    'age_combinations_fresh':my_set
+    }
+
+shelf_life_fresh = {
+    (product_group,bird_type) : shelf_life_value
+    }    # Only Fresh
+
+age_combinations_fresh = (set(product_group,bird_type,n) for n (int) in range lying in the interval [0, shelf_life])
+
+##############################################################
+
 To Do:
 1. Check if this operation can be merged in other
 """
@@ -34,7 +48,7 @@ def update_inv_life():
     shelf_life = i_master.set_index(['prod_group_index','bird_type_index']).to_dict(orient = 'dict')['shelf_life']
     my_set = set()
     for i,y in shelf_life.items():
-        for k in range(1,int(y)+1):
+        for k in range(0,int(y)+1):
             my_set.add((i[0],i[1],k))
 
     life_dct = {'shelf_life_fresh':shelf_life,'age_combinations_fresh':my_set}
@@ -64,5 +78,5 @@ if __name__=="__main__":
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    update_inv_life()
+    # update_inv_life()
     # print (read_inv_life())

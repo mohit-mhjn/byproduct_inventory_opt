@@ -44,7 +44,7 @@ def get_parts(indexes,horizon):
     i_master = i_master.filter(items =['prod_group_index','bird_type_index','product_type','shelf_life'])
     i_master.dropna(inplace=True)
     tbl = tbl.merge(i_master, on = ['prod_group_index','bird_type_index','product_type'])
-    tbl = tbl[(tbl.inv_age <= tbl.shelf_life)]
+    tbl = tbl[(tbl.inv_age <= tbl.shelf_life) & (tbl.inv_age > 0)]   # Age > 0 (Invalid Inventory Age for opening inv)
     fresh_dct = tbl[(tbl.product_type == 'Fresh')].set_index(['prod_group_index','bird_type_index','inv_age']).to_dict(orient='dict')['inventory']
     frozen = tbl[(tbl.product_type == 'Frozen')]
     frozen = frozen.drop(labels = ['inv_age','shelf_life','product_type'], axis=1)

@@ -1,4 +1,4 @@
-python3(v: 3.5.2)
+python3(v: 3.5.2) \\should not be compatible with python 2.7 as pickle serialization protocol used is 3 (as default), pyomo method \"value()\" for expressions is deprecated for 2.7
 os
 csv
 json
