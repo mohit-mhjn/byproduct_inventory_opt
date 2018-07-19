@@ -24,18 +24,17 @@ Assumptions:
 To Do:
 1. process logger
 2. planning horizon include in indexes
-3. Data Post processing : Map indexes to their description >> Partially Done : Need to move the piece to separate program + imporve result formatting >>
+3.
 4. Warehouse Capacity
 5.
 """
-
 # Setting Up Environment
 import os
 directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 import datetime
 from pyomo.environ import *
-
+scenario_id = 1
 # Importing Data processing modules
 from sales_order_reader import get_orders
 from inventory_reader import get_birds, get_parts
@@ -256,10 +255,6 @@ model.v_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      
 
 ## Constraints ##############################################
 
-def carcass_availability(model,t,r):
-    return model.z[t,r] <= model.H[t,r]
-model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)      # Total Number of Birds Cut < Bird Available
-
 def carcass_to_section(model,t,r,k):
     return model.zk[t,r,k] == model.z[t,r]
 model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)         # All sections of birds are cut in equal number (no inventroy at section level)
@@ -403,7 +398,7 @@ model.holding_cost = Expression(model.T, rule = expression_gen8)        # Calcul
 # def force1(model):
 #     return model.zk['2018-06-28',1,1] >= 10
 # model.F1Constraint = Constraint(rule = force1)
-
+#
 def force11(model):
     return model.x_freezing[0,7,1] == 10
 model.F11Constraint = Constraint(rule = force11)
@@ -419,7 +414,54 @@ model.F11Constraint = Constraint(rule = force11)
 ## Objective Function and Scenario Selection ############################################
 
 def obj(model):
-    return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
+
+    if scenario_id == 1:
+
+        def carcass_availability(model,t,r):
+            return model.z[t,r] <= model.H[t,r]
+        model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)      # Total Number of Birds Cut < Bird Available
+
+        return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
+
+    elif scenario_id == 3:
+
+        def produce_fresh_for_p1(model,t,p,r):
+            return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',0]
+        model.SC3_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1)
+
+        def produce_fresh_m_for_p1(model,t,p,r):
+            return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',1]
+        model.SC3_Constraint2 = Constraint(model.T, model.P, model.R, rule = produce_fresh_m_for_p1)
+
+        def produce_frozen_for_p1(model,t,p,r):
+            return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
+        model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)
+
+    elif scenario_id == 2:
+
+        def produce_fresh_for_p1(model,t,p,r):
+            return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',0]
+        model.SC2_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1)
+
+        def produce_fresh_m_for_p1(model,t,p,r):
+            return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',1]
+        model.SC2_Constraint2 = Constraint(model.T, model.P, model.R, rule = produce_fresh_m_for_p1)
+
+        def produce_frozen_for_p1(model,t,p,r):
+            return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
+        model.SC2_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)
+
+        def production_constraint_for_p1(model,t,p,r):
+            req_fresh = model.sales_order[t,1,p,r,'Fresh',0] + model.sales_order[t,1,p,r,'Fresh',1] - model.total_inv_fresh[t,p,r]
+            req_frozen = model.sales_order[t,1,p,r,'Frozen',0] - model.inv_frozen[t,p,r]
+            return model.xpr[t,p,r] <= req_fresh + req_frozen
+        model.SC2_Constraint4 = Constraint(model.T,model.P, model.R, rule = production_constraint_for_p1)
+
+        return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
+
+    else:
+        raise AssertionError("Invalid Scenario Selection.\n\t\tThe available options are : 1, 2, 3\n\t\tPlease retry with a valid parameter")
+        return 0
 model.objctve = Objective(rule = obj, sense = minimize)
 
 ## Using Solver Method ##################################################
@@ -427,10 +469,10 @@ model.objctve = Objective(rule = obj, sense = minimize)
 solution = solve_model(model)
 model = solution[0]
 result = solution[1]
-#print(result)
+print(result)
 
 ## post processing to print result tables #######################################################
-summarize_results(model,horizon,indexes,print_tables=False,keep_files = False)
+# summarize_results(model,horizon,indexes,print_tables=False,keep_files = False)
 
 print ("End")
 exit()

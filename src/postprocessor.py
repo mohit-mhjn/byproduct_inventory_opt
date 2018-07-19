@@ -12,6 +12,7 @@ The variable names are highly dependent on the variable names in the main progra
 
 To Do:
 1. Arrangement of Columns in print and CSV
+2. get key,value response back in the main program
 
 """
 

@@ -104,8 +104,8 @@ prod_group_index,bird_type_index,product_type,inv_age,inventory
 17,4,Fresh,1,0
 17,5,Fresh,5,0
 17,6,Fresh,2,0
-18,1,Fresh,1,11
-18,1,Fresh,3,4
+18,1,Fresh,1,0
+18,1,Fresh,3,0
 18,2,Fresh,1,0
 18,3,Fresh,2,0
 18,4,Fresh,4,0
