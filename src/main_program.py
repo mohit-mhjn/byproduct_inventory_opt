@@ -393,12 +393,16 @@ def expression_gen8(model,t):
     return sum(model.total_inv_fresh[t,p,r]*model.inventory_holding_cost[p,r,'Fresh'] + model.ifz[t,p,r]*model.inventory_holding_cost[p,r,'Frozen'] for p in model.P for r in model.R)
 model.holding_cost = Expression(model.T, rule = expression_gen8)        # Calculation total Cost Incurred to hold the imbalance inventory
 
+def expression_gen9(model,t):
+    return model.selling_gains[t] - model.operations_cost[t] - model.holding_cost[t]
+model.profit_projected = Expression(model.T, rule = expression_gen9)
+
 ## Temporary Forcing Constraints (Testing Purpose) #########################
 
 # def force1(model):
 #     return model.zk['2018-06-28',1,1] >= 10
 # model.F1Constraint = Constraint(rule = force1)
-#
+
 def force11(model):
     return model.x_freezing[0,7,1] == 10
 model.F11Constraint = Constraint(rule = force11)
@@ -413,14 +417,14 @@ model.F11Constraint = Constraint(rule = force11)
 
 ## Objective Function and Scenario Selection ############################################
 
-def obj(model):
+def obj_fcn(model):
 
     if scenario_id == 1:
 
         def carcass_availability(model,t,r):
             return model.z[t,r] <= model.H[t,r]
         model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)      # Total Number of Birds Cut < Bird Available
-
+        # return sum(model.profit_projected[t] for t in model.T)
         return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 
     elif scenario_id == 3:
@@ -436,6 +440,8 @@ def obj(model):
         def produce_frozen_for_p1(model,t,p,r):
             return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
         model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)
+        # return sum(model.profit_projected[t] for t in model.T)
+        return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 
     elif scenario_id == 2:
 
@@ -456,13 +462,13 @@ def obj(model):
             req_frozen = model.sales_order[t,1,p,r,'Frozen',0] - model.inv_frozen[t,p,r]
             return model.xpr[t,p,r] <= req_fresh + req_frozen
         model.SC2_Constraint4 = Constraint(model.T,model.P, model.R, rule = production_constraint_for_p1)
-
+        # return sum(model.profit_projected[t] for t in model.T)
         return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 
     else:
         raise AssertionError("Invalid Scenario Selection.\n\t\tThe available options are : 1, 2, 3\n\t\tPlease retry with a valid parameter")
         return 0
-model.objctve = Objective(rule = obj, sense = minimize)
+model.objctve = Objective(rule = obj_fcn, sense = minimize)
 
 ## Using Solver Method ##################################################
 
