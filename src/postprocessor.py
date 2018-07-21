@@ -77,19 +77,19 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
     for t,p,r in itertools.product(model.T,model.P,model.R):
         fresh_satisfied_q = model.u_fresh[t,p,r].value
         fresh_unsatisfied_q = model.v_fresh[t,p,r].value
-        orders1 = sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C)
+        orders1 = sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C_priority)
         selling_gains1 = model.selling_price[p,r,'Fresh',0]*fresh_satisfied_q
         sales_cost_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders1),'satisfied':fresh_satisfied_q,'unsatisfied':fresh_unsatisfied_q,'selling_gains':value(selling_gains1)})
 
         marinated_satisfied_q = model.um_fresh[t,p,r].value
         marinated_unsatisfied_q = model.vm_fresh[t,p,r].value
-        orders2 = sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C)
+        orders2 = sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C_priority)
         selling_gains2 = model.selling_price[p,r,'Fresh',1]*marinated_satisfied_q
         sales_cost_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders2),'satisfied':marinated_satisfied_q,'unsatisfied':marinated_unsatisfied_q,'selling_gains':value(selling_gains2)})
 
         frozen_satisfied_q = model.u_frozen[t,p,r].value
         frozen_unsatisfied_q = model.v_frozen[t,p,r].value
-        orders3 = sum(model.sales_order[t,c,p,r,'Frozen',0] for c in model.C)
+        orders3 = sum(model.sales_order[t,c,p,r,'Frozen',0] for c in model.C_priority)
         selling_gains3 = model.selling_price[p,r,'Frozen',0]*frozen_satisfied_q
         sales_cost_report3.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders3),'satisfied':frozen_satisfied_q,'unsatisfied':frozen_unsatisfied_q,'selling_gains':value(selling_gains3)})
 
@@ -105,7 +105,7 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
 
     cost_report1 = []
     for t in model.T:
-        cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t]),'Revenue':value(model.selling_gains[t])})
+        cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t])})  # ,'Revenue':value(model.selling_gains[t])
     cost_summary = pandas.DataFrame(cost_report1)
 
 
