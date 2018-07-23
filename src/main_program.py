@@ -22,10 +22,10 @@ Assumptions:
 3. Frozen product doesn't age (long shelf life in comparison with planning horizon)
 
 To Do:
-1. process logger
+1. Remove print and add logger
 2. planning horizon include in indexes
-3.
-4. Warehouse Capacity
+3. Warehouse Capacity
+4.
 5.
 """
 # Setting Up Environment
@@ -34,7 +34,8 @@ directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 import datetime
 from pyomo.environ import *
-scenario_id = 1
+scenario_id = 2
+print ("scenario id == %d"%(scenario_id))
 # Importing Data processing modules
 from sales_order_reader import get_orders
 from inventory_reader import get_birds, get_parts
@@ -494,9 +495,9 @@ model.profit_projected = Expression(rule = expression_gen9)            # Profit 
 #     return model.zk['2018-06-28',1,1] >= 10
 # model.F1Constraint = Constraint(rule = force1)
 
-def force1(model):
-    return sum(model.v_frozen[t,p,r] + model.vm_fresh[t,p,r] + model.v_fresh[t,p,r] for t in model.T for p in model.P for r in model.R) == 0
-model.F1Constraint = Constraint(rule = force1)
+# def force1(model):
+#     return sum(model.v_frozen[t,p,r] + model.vm_fresh[t,p,r] + model.v_fresh[t,p,r] for t in model.T for p in model.P for r in model.R) == 0
+# model.F1Constraint = Constraint(rule = force1)
 
 # def force11(model):
 #     return model.x_freezing[0,7,1] == 10
@@ -523,8 +524,8 @@ def obj_fcn(model):
         def fullfillment_policy(model,t,c,p,r,typ,m,o):
             return model.coef_serv_L[t,c,p,r,typ,m]*model.order_qty[o] == model.order_qty_supplied[o]
         model.SC1_Constratint1 = Constraint(model.indx_o_filling, rule = fullfillment_policy)     # Equality of serive level for all the orders
-        # return model.profit_projected
-        return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
+        return model.profit_projected
+        # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 
     elif scenario_id == 2:
 
@@ -544,23 +545,22 @@ def obj_fcn(model):
             return model.order_qty_supplied[o] >= model.order_sla[o]
         model.SC3_Constraint4 = Constraint(model.O, rule = order_commitment)      # For each order >> Quantity supplied > committed Service Level
 
-        # return model.profit_projected
-        return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
-
+        return model.profit_projected
+        # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
     else:
         raise AssertionError("Invalid Scenario Selection.\n\t\tThe available options are : 1, 2, 3\n\t\tPlease retry with a valid parameter")
         return 0
-model.objctve = Objective(rule = obj_fcn, sense = minimize)
+model.objctve = Objective(rule = obj_fcn, sense = maximize)
 
 ## Using Solver Method ##################################################
 
-solution = solve_model(model)
+solution = solve_model(model,p_summary= False, p_log=True)
 model = solution[0]
 result = solution[1]
-print(result)
+# print(result)
 
 ## post processing to print result tables #######################################################
-# summarize_results(model,horizon,indexes,print_tables=False,keep_files = False)
+summarize_results(model,horizon,indexes,print_tables=True, keep_files = False)
 
 print ("End")
 exit()

@@ -8,6 +8,7 @@ A few more similar cases, will exhaustively list them here soon
 >> Inventory with product_group, bird_type and product_type
 >> Birds available with defined size/type of bird
 >> Cutting Pattern with defined sections
+>> Sales order = 0 remove from the orders (will cause unnecessary increase in variables)
 >>
 
 3. A few indexes are hard coded:
@@ -29,6 +30,16 @@ Process >> cutting,marination,freezing
 
 8. As of date (17 Jul 2018), Frozen SKU's are not subjected to marination
 
-9. Inventory data in value terms (COGS)
+9. Demand is available at customer SKU level
 
-10. Service Level Constraints >> 
+10. Capacity Measurement >>
+      Freezing Capacity: kgph
+      Marination Capacity: kgph
+      Cutting Capacity : Number of carcasses per hour
+
+11. Cost Measurement >>
+      selling price : customer vs sku
+      cutting cost : cost of cutting per carcass or per cut
+      freezing cost : cost of freezing per kg
+      marination cost : cost of marination per kg
+      

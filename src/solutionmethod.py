@@ -1,10 +1,13 @@
-def solve_model(model):       # Custom Solve Method
+def solve_model(model,p_summary = True, p_log = False):       # Custom Solve Method
     import datetime
-    trial_pool = {
-                    'sample1':{'solution_file':None,'aspiration':None},
-                    'sample2':{'solution_file':None,'aspiration':None},
-                    'sample3':{'solution_file':None,'aspiration':None}
-                 }
+
+    # Choose the best solution from the trial pool
+
+    # trial_pool = {
+    #                 'sample1':{'solution_file':None,'aspiration':None},
+    #                 'sample2':{'solution_file':None,'aspiration':None},
+    #                 'sample3':{'solution_file':None,'aspiration':None}
+    #              }
 
     #model1 = copy.deepcopy(model)
     #model2 = copy.deepcopy(model)
@@ -17,9 +20,10 @@ def solve_model(model):       # Custom Solve Method
     number_of_trials = 1
     solver_sh = 'cbc'     #initialization Setting
     engage_neos = False  #initialization Setting
+    threads = 3
     j = 1
     timeout_arguments = {'cplex':'timelimit','cbc':'sec'}
-    gap_arguments = {'cplex':'mipgap','cbc':'ratio'}   # Cplex Local Executable Take : "mip_tolerance_mipgap", mipgap is for neos version
+    gap_arguments = {'cplex':'mipgap','cbc':'ratio'}   # Cplex Local Executable will take : "mip_tolerance_mipgap", mipgap is for neos version
 
     # NEOS Server Library Dependency
     # pyro4
@@ -41,13 +45,14 @@ def solve_model(model):       # Custom Solve Method
         print ('\tsolver options >> \n\n\tTolerance Limits:\n\tmip_gap = %s \n\ttimeout = %s'%(str(mip_gap),str(solver_timeout)))
         print ("\nProcessing Trial Number :",j)
         print ("\nJob Triggered at :",str(datetime.datetime.now()))
-        print ('\ngenerating production plan...... !! please wait !!    \n to interrupt press ctrl+C\n')
+        print ('\ngenerating solution ...... !! please wait !!    \n to interrupt press ctrl+C\n')
         try:
             if engage_neos:
                 results = solver_manager.solve(model,opt = opt, tee= True)
             else:
-                opt.options['threads'] = 3
-                #opt.options['slog'] = 1
+                opt.options['threads'] = threads
+                if p_log:
+                    opt.options['slog'] = 1
                 results = opt.solve(model) # Method Load Solutions is not available in pyomo versions less than 4.x
         except:
             j = j+1
@@ -70,12 +75,13 @@ def solve_model(model):       # Custom Solve Method
             print ('Terminated by:',str(results['Solver'][0]['Termination condition']))
             print ("\n\nRetrying...\n\n")
         else:
-            print ("solution captured")
+            print ("SUCCESS: Solution Captured!")
             model.solutions.store_to(results)
             #post_process_results()
             break
 
-    print (results['Problem'])
-    print (results['Solver'])
+    if p_summary:
+        print (results['Problem'])
+        print (results['Solver'])
     print ("\nSolution Retrived at:",str(datetime.datetime.now()))
     return [model,results]
