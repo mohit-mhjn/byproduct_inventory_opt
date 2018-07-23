@@ -34,7 +34,7 @@ directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 import datetime
 from pyomo.environ import *
-scenario_id = 2
+scenario_id = 2     #### Scenario id set : [1,2] >> 1 working 2 is infeasible
 print ("scenario id == %d"%(scenario_id))
 # Importing Data processing modules
 from sales_order_reader import get_orders
@@ -524,37 +524,37 @@ def obj_fcn(model):
         def fullfillment_policy(model,t,c,p,r,typ,m,o):
             return model.coef_serv_L[t,c,p,r,typ,m]*model.order_qty[o] == model.order_qty_supplied[o]
         model.SC1_Constratint1 = Constraint(model.indx_o_filling, rule = fullfillment_policy)     # Equality of serive level for all the orders
-        return model.profit_projected
+        return -1*model.profit_projected
         # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 
     elif scenario_id == 2:
 
-        def produce_fresh_for_p1(model,t,p,r):
-            return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',0]
-        model.SC3_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1) # Total Sales > Priority Fulfillment
+        # def produce_fresh_for_p1(model,t,p,r):
+        #     return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',0]
+        # model.SC3_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1) # Total Sales > Priority Fulfillment
+        #
+        # def produce_fresh_m_for_p1(model,t,p,r):
+        #     return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',1]
+        # model.SC3_Constraint2 = Constraint(model.T, model.P, model.R, rule = produce_fresh_m_for_p1)  # Total Sales > Priority Fulfillment
+        #
+        # def produce_frozen_for_p1(model,t,p,r):
+        #     return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
+        # model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)   # Total Sales > Priority Fulfillment
 
-        def produce_fresh_m_for_p1(model,t,p,r):
-            return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',1]
-        model.SC3_Constraint2 = Constraint(model.T, model.P, model.R, rule = produce_fresh_m_for_p1)  # Total Sales > Priority Fulfillment
+        # def order_commitment(model,o):
+        #     return model.order_qty_supplied[o] >= model.order_sla[o]
+        # model.SC3_Constraint4 = Constraint(model.O, rule = order_commitment)      # For each order >> Quantity supplied > committed Service Level
 
-        def produce_frozen_for_p1(model,t,p,r):
-            return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
-        model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)   # Total Sales > Priority Fulfillment
-
-        def order_commitment(model,o):
-            return model.order_qty_supplied[o] >= model.order_sla[o]
-        model.SC3_Constraint4 = Constraint(model.O, rule = order_commitment)      # For each order >> Quantity supplied > committed Service Level
-
-        return model.profit_projected
+        return -1*model.profit_projected
         # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
     else:
         raise AssertionError("Invalid Scenario Selection.\n\t\tThe available options are : 1, 2, 3\n\t\tPlease retry with a valid parameter")
         return 0
-model.objctve = Objective(rule = obj_fcn, sense = maximize)
+model.objctve = Objective(rule = obj_fcn, sense = minimize)
 
 ## Using Solver Method ##################################################
 
-solution = solve_model(model,p_summary= False, p_log=True)
+solution = solve_model(model)
 model = solution[0]
 result = solution[1]
 # print(result)

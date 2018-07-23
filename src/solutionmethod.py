@@ -62,7 +62,7 @@ def solve_model(model,p_summary = True, p_log = False):       # Custom Solve Met
             continue
         #results.write(filename='results'+str(datetime.date.today())+'.json',format = 'json')
         #print (results)
-        if str(results['Solver'][0]['Termination condition']) in ['infeasible','maxTimeLimit','maxIterations','intermediateNonInteger']:
+        if str(results['Solver'][0]['Termination condition']) in ['infeasible','maxTimeLimit','maxIterations','intermediateNonInteger','unbounded']:
             j = j+1
             mip_gap = (j-1)*mip_gap
             solver_sh = 'cplex'
