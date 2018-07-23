@@ -1,5 +1,4 @@
-print ("Start")
-print ("\n\t<<<< May the force be with you \m/ >>>>\n")
+print ("\n\t<<<< \m/ may the force be with you \m/ >>>>\n")
 """
 Note: Compatible with Python 3
 
@@ -29,13 +28,24 @@ To Do:
 5.
 """
 # Setting Up Environment
+print ("Start")
 import os
 directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 import datetime
+import sys
 from pyomo.environ import *
-scenario_id = 1     #### Scenario id set : [1,2] >> 1 is working 2 is infeasible
-print ("scenario id == %d"%(scenario_id))
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--scenario_id", help="selection of scenario_id", type=int)
+args = parser.parse_args()
+scenario_id = args.scenario_id
+if scenario_id == None:
+    print ("WARNING: scenario selection not found \n\tUse argument \"--scenario_id = n\" to define scenario number \n\tValid options for n = [1,2]")
+    print ("default scenario = 1")
+    scenario_id = 1     #### Scenario id set : [1,2] >> 1 is working 2 is infeasible
+print ("selected scenario id == %d"%(scenario_id))
+
 # Importing Data processing modules
 from sales_order_reader import get_orders
 from inventory_reader import get_birds, get_parts
