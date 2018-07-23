@@ -1,6 +1,21 @@
+"""
+This generic fucntion is used for solver selection for the model and respectively calling the solve method.
+As the output the solve_model fuction will throw the response as the solved model object and result file of the variables
+
+The selection is available for cplex and cbc to execute for both local and NEOS servers.
+Use "initialization setting" to configure
+
+The fucntion solve model consists of two labelled parameters : p_summary and p_log
+p_summary : To print the output summary of problem and solution. (number of variables, number of constraints, non-zeros , matrix size, Termination Condition, Branching etc.)
+p_log : To print the solver log while processing output (only for the local solver execution, Doesnt work with remote executiong of solver)
+
+The output is an array of length 2
+[solved_model_object, result_file]
+note that solved_model_object belongs to pyomo model class
+"""
+
 def solve_model(model,p_summary = True, p_log = False):       # Custom Solve Method
     import datetime
-
     # Choose the best solution from the trial pool
 
     # trial_pool = {
@@ -48,6 +63,7 @@ def solve_model(model,p_summary = True, p_log = False):       # Custom Solve Met
         print ('\ngenerating solution ...... !! please wait !!    \n to interrupt press ctrl+C\n')
         try:
             if engage_neos:
+                p_log = False
                 results = solver_manager.solve(model,opt = opt, tee= True)
             else:
                 opt.options['threads'] = threads
