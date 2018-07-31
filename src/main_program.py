@@ -183,6 +183,9 @@ def combination_gen16(model):                                        #  Combinat
 model.indx_o_filling = Set(dimen = 7, initialize = combination_gen16)
 
 ## Loading Input Parameters #############################################
+model.BigM = Param(initialize = 9999999)
+## Highly Controversial Value >> Careful with this while tuning the real dataset
+# Solvers might sometime fail because of big M values, If in case reduce the value by a factor of 10 and try. It shall work otherwise repeat this step again
 
 def inv_gen1(model,t,r):
     global birds_inv
@@ -307,6 +310,7 @@ model.xpjr = Var(model.T, model.indx_pjr, domain = NonNegativeReals)     # Quant
 model.il = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Fresh Inventory of Age L used
 
 model.coef_serv_L = Var(model.T,model.C_priority,model.P,model.R,model.P_type,model.M, bounds = (0,1), domain = NonNegativeReals)  # Service Level Fulfillment percent
+model.coef_serv_L_indicator = Var(model.T,model.C_priority,model.P,model.R,model.P_type,model.M, domain = Binary)  # Service Level Fulfillment percent
 model.order_qty_supplied = Var(model.O, domain = NonNegativeReals)              # For an order O, how much quantity is fulfilled
 
 model.x_freezing = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Quantity of Product P of bird type R converted from Fresh to Frozen
@@ -537,9 +541,18 @@ def obj_fcn(model):
             return model.z[t,r] <= model.H[t,r]
         model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)      # Total Number of Birds Cut < Bird Available
 
-        def fullfillment_policy(model,t,c,p,r,typ,m,o):
+        def fullfillment_policy1(model,t,c,p,r,typ,m,o):
             return model.coef_serv_L[t,c,p,r,typ,m]*model.order_qty[o] == model.order_qty_supplied[o]
-        model.SC1_Constratint1 = Constraint(model.indx_o_filling, rule = fullfillment_policy)     # Equality of serive level for all the orders
+        model.SC1_Constratint1 = Constraint(model.indx_o_filling, rule = fullfillment_policy1)     # Equality of serive level for all the orders
+
+        def xy_relationship(model,t,c,p,r,typ,m,o):
+            return model.BigM*model.coef_serv_L_indicator[t,c,p,r,typ,m] >= model.coef_serv_L[t,c,p,r,typ,m]
+        model.binary_relationship = Constraint(model.indx_o_filling, rule = xy_relationship)  # Indicator = 1 if value > 0
+
+        def fullfillment_policy2(model,t,c,p,r,typ,m,o):
+            return model.coef_serv_L[t,1,p,r,typ,m] >= model.coef_serv_L_indicator[t,2,p,r,typ,m]
+        model.SC1_Constraint2 = Constraint(model.indx_o_filling, rule = fullfillment_policy2)        ## For a product is a customer prior 2 is served then making sure all priority 1 customers are serviced first
+
         return -1*model.profit_projected
         # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 

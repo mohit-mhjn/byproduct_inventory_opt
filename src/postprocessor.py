@@ -129,6 +129,7 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
     for o in model.O:
         order_report.append({'order_number':o,'order_date':horizon[model.order_date[o]],'total_order_quantity':model.order_qty[o],'quantity_fulfilled':value(model.order_qty_supplied[o])})
     order_fulfillment_summary = pandas.DataFrame(order_report)
+    order_fulfillment_summary["service_level"] = 100*order_fulfillment_summary["quantity_fulfilled"]/order_fulfillment_summary["total_order_quantity"]
     order_fulfillment_summary.name = 'Order wise fulfillment data'
 
 
@@ -146,6 +147,7 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
                     order_fulfillment_summary]
 
     if print_tables:
+        pandas.set_option('display.expand_frame_repr', False)
         for table in output_tables:
             print ("\n\t %s >> \n "%(table.name))
             print (table)

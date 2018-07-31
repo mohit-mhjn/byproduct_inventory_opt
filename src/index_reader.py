@@ -123,5 +123,5 @@ if __name__=='__main__':
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    # update_masters()
+    update_masters()
     # read_masters()

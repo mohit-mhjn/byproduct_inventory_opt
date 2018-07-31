@@ -78,5 +78,5 @@ if __name__=="__main__":
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    # update_inv_life()
+    update_inv_life()
     # print (read_inv_life())
