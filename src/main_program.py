@@ -33,17 +33,21 @@ import os
 directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 import datetime
-import sys
 from pyomo.environ import *
+import configparser
+config = configparser.ConfigParser()
+config.read('start_config.ini')
+
+import sys
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--scenario_id", help="selection of scenario_id", type=int)
 args = parser.parse_args()
 scenario_id = args.scenario_id
 if scenario_id == None:
-    print ("WARNING: scenario selection not found \n\tUse argument \"--scenario_id = n\" to define scenario number \n\tValid options for n = [1,2]")
-    print ("default scenario = 1")
-    scenario_id = 1     #### Scenario id set : [1,2] >> 1 is working 2 is infeasible
+    print ("WARNING: scenario selection not found \n\tUse argument \"--scenario_id n\" to define scenario number \n\tValid options for n = [1,2]")
+    scenario_id = 2   #### Scenario id set : [1,2] >> 1 is working 2 is infeasible
+    print ("default scenario = %d"%(scenario_id))
 print ("selected scenario id == %d"%(scenario_id))
 
 # Importing Data processing modules
@@ -93,7 +97,6 @@ model.P_type = Set(initialize = indexes['product_typ'])          # Type of Produ
 model.M = Set(initialize = indexes['marination'])                # Marination Indicator
 model.C_priority = Set(initialize = indexes['c_priority'])       # Customer Priority Indicator
 model.O = Set(initialize = order_breakup.keys())                 # Order Id's
-#list(map(lambda x: x[2], order_breakup.keys()))
 
 ## Generating combinations ###############################################
 def combination_gen1(model,j):
@@ -316,6 +319,7 @@ model.vm_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)      
 model.u_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Satisfied Frozen
 model.v_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Unsatisfied Frozen
 
+model.test = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Test
 ## Constraints ##############################################
 
 def carcass_to_section(model,t,r,k):
@@ -335,9 +339,13 @@ def cutting_pattern_count_limiter(model,t,r,j):  # Will become redundant if z is
     return model.zj[t,r,j] <= sum(model.zkj[t,r,k,j] for k in model.Jk[j])
 model.A4Constraint = Constraint(model.T, model.indx_rj, rule = cutting_pattern_count_limiter) # Determining number of times cutting pattern J is applied (max value)
 
-def cutting_pattern_balancer(model,t,r,k,j):
-    return model.zkj[t,r,k,j] == model.zj[t,r,j]
-model.A5Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer)   # Cutting pattern of whole bird is equally applied on all the sections
+def cutting_pattern_balancer1(model,t,r,k,j):
+    return model.zkj[t,r,k,j] >= model.zj[t,r,j]
+model.A5_1Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer1)   # Cutting pattern of whole bird is equally applied on all the sections
+
+def cutting_pattern_balancer2(model,t,r,k,j):
+    return model.zkj[t,r,k,j] <= model.zj[t,r,j]
+model.A5_2Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer2)   # Cutting pattern of whole bird is equally applied on all the sections
 
 def product_yield_eqn(model,t,r,k,j,p):
     all_items = set(model.RJp[r,j])       # >> All items possible from r,j
@@ -348,7 +356,7 @@ def product_yield_eqn(model,t,r,k,j,p):
     if not products:
         return Constraint.Skip
     else:
-        return model.zkj[t,r,k,j] == sum(model.xpjr[t,p,j,r]/model.yd[p,j,r] for p in products)
+        return model.zkj[t,r,k,j] == sum(model.xpjr[t,p,j,r]/model.yd[p,j,r] for p in products)   # >> Prone to Numerical Error float=int ; Revision Required
 model.A7Constraint = Constraint(model.T, model.indx_rkjp, rule = product_yield_eqn)        # Conversion of a cut-up into a product group
 
 def fresh_part_production(model,t,p,r):
@@ -358,7 +366,7 @@ model.A8Constraint = Constraint(model.T, model.P, model.R, rule = fresh_part_pro
 ## Inventroy Balance Equations and Constraints ##########################################
 
 def expression_gen1(model,t,p,r):
-    return model.x_freezing[t,p,r] + model.x_marination[t,p,r] + model.u_fresh[t,p,r]
+    return  model.u_fresh[t,p,r] + model.x_freezing[t,p,r] + model.x_marination[t,p,r]
 model.fresh_inv_used = Expression(model.T, model.P, model.R, rule = expression_gen1)        # Quantity of Fresh Inventory used is equal to inv q used in freezing + q used in marination + q sold in fresh form
 
 def inventory_used_for_age(model,t,p,r):                                                    # Quantity of Fresh Inv used = Qunaity of Fresh Inv used for all ages
@@ -394,9 +402,10 @@ def expression_gen4(model,t,p,r):
     return sum(model.fresh_inv_qoh[t,p,r,l1] for l1 in range(int(model.L[p,r])+1))         # Total Inventory(opening) Fresh == sum of inventory at all ages
 model.total_inv_fresh = Expression(model.T,model.P,model.R, rule = expression_gen4)
 
-def limit_inv_usage(model,t,p,r):                                                           # Inventory Usage <= Inital Available + Usage
+def limit_inv_usage(model,t,p,r):                                                           # Inventory Usage <= Inital Available + produced
     return model.total_inv_fresh[t,p,r] + model.xpr[t,p,r] >= model.fresh_inv_used[t,p,r]
 model.A12Constraint = Constraint(model.T, model.P, model.R, rule = limit_inv_usage)
+##+ model.xpr[t,p,r]
 
 def balance_inv_usage(model,t,p,r):                                                        # Conserve Inventory Quantity between two consecutive days
     if t == 0:                                                                              # inv_fresh for all ages + model.fresh_part_production[t,p,r] =< model.inv_usage[t,p,r])
@@ -404,6 +413,7 @@ def balance_inv_usage(model,t,p,r):                                             
     else:
         return model.total_inv_fresh[t-1,p,r] + model.xpr[t-1,p,r] - model.fresh_inv_used[t-1,p,r] == model.total_inv_fresh[t,p,r]
 model.A12_1Constraint = Constraint(model.T, model.P, model.R, rule = balance_inv_usage)
+# + model.xpr[t-1,p,r]
 
 def freeze_expiring_inventory(model,t,p,r):                                         # Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
     max_life = model.L[p,r]
@@ -425,7 +435,7 @@ def fresh_m_requirement_balance2(model,t,p,r):
 model.requirement_balance3 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance2)    # Marination process is Make to Order
 
 def frozen_requirement_balance(model,t,p,r):
-    return model.u_frozen[t,p,r] + model.v_frozen[t,p,r] == sum(model.sales_order[t,c,p,r,'Frozen',m] for c in model.C_priority for m in model.M)
+    return model.u_frozen[t,p,r] + model.v_frozen[t,p,r] == sum(model.sales_order[t,c,p,r,'Frozen',0] for c in model.C_priority)
 model.requirement_balance4 = Constraint(model.T, model.P, model.R, rule = frozen_requirement_balance)    # Sold + Unsold Frozen Products without Marination
 
 def order_requirement_balance1(model,t,p,r):
@@ -461,10 +471,6 @@ model.requirement_balance7 = Constraint(model.T, model.P, model.R, rule = order_
 def order_fulfillment_limiter(model,o):
     return model.order_qty_supplied[o] <= model.order_qty[o]
 model.requirement_balance8 = Constraint(model.O, rule = order_fulfillment_limiter)                # Max Quantity supplied in order <= sales order qty
-
-# def pref_use_older_inv(model,t,p,r):  ## not Required on Priority >>  Inv age at 3 must be finished before starting to use inv at age 2
-#     return
-# model.A131Constraint = Constraint(model.T,model.P,model.R)
 
 ## Capacity Constraints ###################################  (Checking on UOM Pending)
 
@@ -502,7 +508,7 @@ model.profit_projected = Expression(rule = expression_gen9)            # Profit 
 ## Temporary Forcing Constraints (Testing Purpose) #########################
 
 # def force1(model):
-#     return model.zk['2018-06-28',1,1] >= 10
+#     return model.zj[0,1,1] >= 100
 # model.F1Constraint = Constraint(rule = force1)
 
 # def force1(model):
@@ -564,13 +570,14 @@ model.objctve = Objective(rule = obj_fcn, sense = minimize)
 
 ## Using Solver Method ##################################################
 
-solution = solve_model(model)
+solution = solve_model(model, p_summary = bool(int(config['solver']['p_summary'])))
 model = solution[0]
 result = solution[1]
-# print(result)
+if bool(int(config['solver']['print_solution'])):
+    print (result)
 
-## post processing to print result tables #######################################################
-summarize_results(model,horizon,indexes,print_tables=True, keep_files = False)
+## post processing to print result tables ########################################
+summarize_results(model,horizon,indexes, print_tables= bool(int(config['results']['print_tables'])), keep_files = bool(int(config['results']['keep_files'])))
 
 print ("End")
 exit()
@@ -601,5 +608,9 @@ elif scenario_id == 2:
     model.SC2_Constraint4 = Constraint(model.T,model.P, model.R, rule = production_constraint_for_p1)
     # return sum(model.profit_projected[t] for t in model.T)
     return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
+
+# def pref_use_older_inv(model,t,p,r):  ## not Required on Priority >>  Inv age at 3 must be finished before starting to use inv at age 2
+#     return
+# model.A131Constraint = Constraint(model.T,model.P,model.R)
 
 """

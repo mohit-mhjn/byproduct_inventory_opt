@@ -14,7 +14,7 @@ The output is an array of length 2
 note that solved_model_object belongs to pyomo model class
 """
 
-def solve_model(model,p_summary = True, p_log = False):       # Custom Solve Method
+def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Method
     import datetime
     # Choose the best solution from the trial pool
 

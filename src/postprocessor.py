@@ -34,6 +34,7 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
         bird_req_data.append({'date':str(horizon[t]),'bird_size':indexes['bird_type'][r]['bird_type'],'req_number':model.z[t,r].value})
     bird_type_requirement = pandas.DataFrame(bird_req_data)
     bird_type_requirement = bird_type_requirement[(bird_type_requirement.req_number > 0)]
+    bird_type_requirement.name = 'bird requirement'
 
 
     #Cutting Pattern Plan
@@ -43,6 +44,7 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
     cutting_pattern_plan = pandas.DataFrame(cutting_pattern_data)
     cutting_pattern_plan = cutting_pattern_plan[(cutting_pattern_plan.pattern_count > 0)]
     cutting_pattern_plan.sort_values(by = ['date','bird_type','pattern_count','section'], inplace = True)
+    cutting_pattern_plan.name = 'cutting_pattern_plan'
 
     #Output Production and Processing
     production_data1 = []
@@ -56,24 +58,29 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
 
     fresh_production = pandas.DataFrame(production_data1)
     fresh_production = fresh_production[(fresh_production.quantity_produced > 0)]
+    fresh_production.name = 'fresh production'
 
     freezing_lots = pandas.DataFrame(production_data2)
     freezing_lots = freezing_lots[(freezing_lots.quantity_produced > 0)]
+    freezing_lots.name = 'freezing_lots'
 
     marination_lots = pandas.DataFrame(production_data3)
     marination_lots = marination_lots[(marination_lots.quantity_produced > 0)]
+    marination_lots.name = 'marination_lots'
 
     inventory_report1 = []
     for t,(p,r,l) in itertools.product(model.T,model.INV_Fresh):
         inventory_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'age_days':l,'quantity_on_hand':model.ifs[t,p,r,l].value,'UOM':'KG'})
     fresh_inventory_report = pandas.DataFrame(inventory_report1)
     fresh_inventory_report = fresh_inventory_report[(fresh_inventory_report.quantity_on_hand > 0)]
+    fresh_inventory_report.name = 'Projected Fresh Inventory'
 
     inventory_report2 = []
     for t,p,r in itertools.product(model.T,model.P, model.R):
         inventory_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_on_hand':model.ifz[t,p,r].value,'UOM':'KG'})
     frozen_inventory_report = pandas.DataFrame(inventory_report2)
     frozen_inventory_report = frozen_inventory_report[(frozen_inventory_report.quantity_on_hand > 0)]
+    frozen_inventory_report.name = 'Projected Frozen Inventory'
 
     sales_cost_report1 = []
     sales_cost_report2 = []
@@ -101,42 +108,48 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
 
     sales_fresh_sku = pandas.DataFrame(sales_cost_report1)
     sales_fresh_sku = sales_fresh_sku[(sales_fresh_sku.orders > 0)]
+    sales_fresh_sku.name = 'Demand Fulfillment Plan Fresh'
 
     sales_marination_sku = pandas.DataFrame(sales_cost_report2)
     sales_marination_sku = sales_marination_sku[(sales_marination_sku.orders > 0)]
+    sales_marination_sku.name = 'Demand Fulfillment Plan Fresh with Marination'
 
     sales_frozen_sku = pandas.DataFrame(sales_cost_report3)
     sales_frozen_sku = sales_frozen_sku[(sales_frozen_sku.orders > 0)]
+    sales_frozen_sku.name = 'Demand Fulfillment Plan Frozen'
 
     cost_report1 = []
     for t in model.T:
-        cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t])})  # ,'Revenue':value(model.selling_gains[t])
+        revenue_generated = sum(value(model.order_qty_supplied[o])*model.order_sp[o] for o in model.O if t == model.order_date[o])
+        cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t]),'Revenue':revenue_generated})
     cost_summary = pandas.DataFrame(cost_report1)
+    cost_summary.name = 'Summary of Projected Costs'
 
+    order_report = []
+    for o in model.O:
+        order_report.append({'order_number':o,'order_date':horizon[model.order_date[o]],'total_order_quantity':model.order_qty[o],'quantity_fulfilled':value(model.order_qty_supplied[o])})
+    order_fulfillment_summary = pandas.DataFrame(order_report)
+    order_fulfillment_summary.name = 'Order wise fulfillment data'
+
+
+    output_tables = [bird_type_requirement,
+                    cutting_pattern_plan,
+                    fresh_production,
+                    freezing_lots,
+                    marination_lots,
+                    fresh_inventory_report,
+                    frozen_inventory_report,
+                    sales_fresh_sku,
+                    sales_frozen_sku,
+                    sales_marination_sku,
+                    cost_summary,
+                    order_fulfillment_summary]
 
     if print_tables:
-        print ("\n\t bird requirement >> \n ")
-        print (bird_type_requirement)
-        print ("\n\t cutting_pattern_plan >> \n ")
-        print (cutting_pattern_plan)
-        print ("\n\t fresh production >> \n ")
-        print (fresh_production)
-        print ("\n\t freezing_lots >> \n ")
-        print (freezing_lots)
-        print ("\n\t marination_lots >> \n ")
-        print (marination_lots)
-        print ("\n\t Projected Fresh Inventory >> \n ")
-        print (fresh_inventory_report)
-        print ("\n\t Projected Frozen Inventory >> \n ")
-        print (frozen_inventory_report)
-        print ("\n\t Demand Fulfillment Plan Fresh >> \n ")
-        print (sales_fresh_sku)
-        print ("\n\t Demand Fulfillment Plan Frozen >> \n ")
-        print (sales_frozen_sku)
-        print ("\n\t Demand Fulfillment Plan Fresh with Marination >> \n ")
-        print (sales_marination_sku)
-        print ("\n\t Summary of Projected Costs >> \n ")
-        print (cost_summary)
+        for table in output_tables:
+            print ("\n\t %s >> \n "%(table.name))
+            print (table)
+
 
     if keep_files:
 
@@ -144,17 +157,8 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
         directory = os.path.dirname(os.path.abspath(__file__))
         os.chdir(directory)
 
-        bird_type_requirement.to_csv(path_or_buf = "output_files/bird_type_requirement.csv",index = False)
-        cutting_pattern_plan.to_csv(path_or_buf = "output_files/cutting_pattern_plan.csv",index = False)
-        fresh_production.to_csv(path_or_buf = "output_files/fresh_production.csv",index = False)
-        freezing_lots.to_csv(path_or_buf = "output_files/freezing_lots.csv",index = False)
-        marination_lots.to_csv(path_or_buf = "output_files/marination_lots.csv",index = False)
-        fresh_inventory_report.to_csv(path_or_buf = "output_files/fresh_inventory_report.csv",index = False)
-        frozen_inventory_report.to_csv(path_or_buf = "output_files/frozen_inventory_report.csv",index = False)
-        sales_fresh_sku.to_csv(path_or_buf = "output_files/sales_fresh_sku.csv",index = False)
-        sales_frozen_sku.to_csv(path_or_buf = "output_files/sales_frozen_sku.csv",index = False)
-        sales_marination_sku.to_csv(path_or_buf = "output_files/sales_marination_sku.csv",index = False)
-        cost_summary.to_csv(path_or_buf = "output_files/cost_summary.csv",index = False)
+        for df in output_tables:
+            df.to_csv(path_or_buf = "output_files/%s.csv"%(df.name),index = False)
 
     print ("postprocessing complete!")
     return None

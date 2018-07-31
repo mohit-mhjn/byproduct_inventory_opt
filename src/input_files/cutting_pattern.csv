@@ -1,43 +1,43 @@
 line,section,cutting_pattern,description,rate,capacity_kgph,operational_cost
-9pc ACM,1,1,Not Available,0.00212,471.05,4
-9pc ACM,2,1,Not Available,0.00212,471.05,4
-9pc ACM,3,1,Not Available,0.00212,471.05,4
-Manual Cut,1,2,Not Available,0.00194,514.37,7
-Manual Cut,2,2,Not Available,0.00194,514.37,7
-Manual Cut,3,2,Not Available,0.00194,514.37,7
-Manual Cut,1,3,Not Available,0.00478,209.16,11
-Manual Cut,2,3,Not Available,0.00478,209.16,11
-Manual Cut,3,3,Not Available,0.00478,209.16,11
-Manual Cut,1,4,Not Available,0.00227,440.17,14
-Manual Cut,2,4,Not Available,0.00227,440.17,14
-Manual Cut,3,4,Not Available,0.00227,440.17,14
-Manual Cut,1,5,Not Available,0.00174,576.18,18
-Manual Cut,2,5,Not Available,0.00174,576.18,18
-NT,1,6,Not Available,0.02212,45.21,21
-NT,1,7,Not Available,0.00928,107.8,25
-NT,1,8,Not Available,0.01453,68.81,28
-NT,2,9,Not Available,0.00637,156.99,32
-NT,2,10,Not Available,0.00697,143.43,35
-NT,2,11,Not Available,0.00637,156.99,39
-NT,2,12,Not Available,0.00697,143.43,42
-NT,2,13,Not Available,0.02565,38.98,46
-NT,2,14,Not Available,0.00697,143.43,49
-NT,2,15,Not Available,0.0143,69.92,53
-NT,2,16,Not Available,0.01595,62.7,56
-NT,2,17,Not Available,0.01176,85.02,60
-NT,2,18,Not Available,0.01116,89.61,64
-NT,2,19,Not Available,0.01176,85.02,67
-NT,2,20,Not Available,0.03044,32.85,71
-NT,2,21,Not Available,0.01655,60.42,74
-NT,2,22,Not Available,0.03326,30.06,78
-NT,2,23,Not Available,0.00194,514.37,81
-NT,3,25,Not Available,0.00363,275.63,88
-NT,3,26,Not Available,0.00238,420,92
-NT,3,27,Not Available,0.01194,83.72,95
-NT,3,28,Not Available,0.01504,66.49,99
-NT,3,29,Not Available,0.01317,75.95,102
-NT,3,30,Not Available,0.00784,127.63,106
-NT,3,31,Not Available,0.00882,113.39,109
-NT,3,32,Not Available,0.01376,72.66,113
-NT,3,33,Not Available,0.02337,42.79,116
-NT,3,34,Not Available,0.02237,44.7,120
+9pc ACM,1,1,Not Available,0.00212,471.05,5
+9pc ACM,2,1,Not Available,0.00212,471.05,5
+9pc ACM,3,1,Not Available,0.00212,471.05,5
+Manual Cut,1,2,Not Available,0.00194,514.37,5
+Manual Cut,2,2,Not Available,0.00194,514.37,5
+Manual Cut,3,2,Not Available,0.00194,514.37,5
+Manual Cut,1,3,Not Available,0.00478,209.16,5
+Manual Cut,2,3,Not Available,0.00478,209.16,5
+Manual Cut,3,3,Not Available,0.00478,209.16,5
+Manual Cut,1,4,Not Available,0.00227,440.17,5
+Manual Cut,2,4,Not Available,0.00227,440.17,5
+Manual Cut,3,4,Not Available,0.00227,440.17,5
+Manual Cut,1,5,Not Available,0.00174,576.18,5
+Manual Cut,2,5,Not Available,0.00174,576.18,5
+NT,1,6,Not Available,0.02212,45.21,5
+NT,1,7,Not Available,0.00928,107.8,5
+NT,1,8,Not Available,0.01453,68.81,5
+NT,2,9,Not Available,0.00637,156.99,5
+NT,2,10,Not Available,0.00697,143.43,5
+NT,2,11,Not Available,0.00637,156.99,5
+NT,2,12,Not Available,0.00697,143.43,5
+NT,2,13,Not Available,0.02565,38.98,5
+NT,2,14,Not Available,0.00697,143.43,5
+NT,2,15,Not Available,0.0143,69.92,5
+NT,2,16,Not Available,0.01595,62.7,5
+NT,2,17,Not Available,0.01176,85.02,5
+NT,2,18,Not Available,0.01116,89.61,5
+NT,2,19,Not Available,0.01176,85.02,5
+NT,2,20,Not Available,0.03044,32.85,5
+NT,2,21,Not Available,0.01655,60.42,5
+NT,2,22,Not Available,0.03326,30.06,5
+NT,2,23,Not Available,0.00194,514.37,5
+NT,3,25,Not Available,0.00363,275.63,5
+NT,3,26,Not Available,0.00238,420,5
+NT,3,27,Not Available,0.01194,83.72,5
+NT,3,28,Not Available,0.01504,66.49,5
+NT,3,29,Not Available,0.01317,75.95,5
+NT,3,30,Not Available,0.00784,127.63,5
+NT,3,31,Not Available,0.00882,113.39,5
+NT,3,32,Not Available,0.01376,72.66,5
+NT,3,33,Not Available,0.02337,42.79,5
+NT,3,34,Not Available,0.02237,44.7,5

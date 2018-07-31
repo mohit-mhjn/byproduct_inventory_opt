@@ -6,8 +6,8 @@
     key: bird_type_index
 
     bird_type_index: A unique index to identify the bird type across the program
-    bird_type: Against the correponsding index how does user define the size
-    abs_weight: Against the correponsding index avg weight of the bird considered
+    bird_type: Against the corresponding index how does user define the size
+    abs_weight: Against the corresponding index avg weight of the bird considered
     dist_p: % distribution of a perticular bird zise in the population >> Not being used
 
 2. Birds Available
