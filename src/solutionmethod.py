@@ -27,15 +27,23 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
     #model1 = copy.deepcopy(model)
     #model2 = copy.deepcopy(model)
     #model3 = copy.deepcopy(model)
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('start_config.ini')
+
+    #initialization Setting
+    mip_gap = float(config['solver']['mip_gap'])
+    solver_timeout = int(config['solver']['solver_timeout'])
+    solver_sh = config['solver']['solver_sh']
+    number_of_trials = int(config['solver']['number_of_trials'])
+    engage_neos = bool(int(config['solver']['engage_neos'])) #initialization Setting
+    threads = int(config['solver']['threads'])
+
+    if solver_sh not in set(["cbc","cplex"]):
+        raise ValueError("Invalid Solver!")
 
     print ("success! \n loading solver......")
 
-    mip_gap = 0
-    solver_timeout = 300
-    number_of_trials = 1
-    solver_sh = 'cbc'     #initialization Setting
-    engage_neos = False  #initialization Setting
-    threads = 3
     j = 1
     timeout_arguments = {'cplex':'timelimit','cbc':'sec'}
     gap_arguments = {'cplex':'mipgap','cbc':'ratio'}   # Cplex Local Executable will take : "mip_tolerance_mipgap", mipgap is for neos version
@@ -101,3 +109,7 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
         print (results['Solver'])
     print ("\nSolution Retrived at:",str(datetime.datetime.now()))
     return [model,results]
+
+if __name__=="__main__":
+    print ("\nThis is a module that calls the optimization solver file \nPlease use the method solve_model() with a pyomo model instance, cannot run independently!")
+    exit(0)

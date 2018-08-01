@@ -24,7 +24,7 @@ To Do:
 1. Remove print and add logger
 2. planning horizon include in indexes
 3. Warehouse Capacity
-4.
+4  MOQ at Lines/CP
 5.
 """
 # Setting Up Environment
@@ -297,9 +297,9 @@ model.order_priority = Param(model.O, initialize = order_priority_gen)          
 
 ## Variable Objects #######################################
 
-model.z = Var(model.T, model.R, domain= NonNegativeIntegers)               # no of carcass r processed in period T
-model.zk = Var(model.T, model.R, model.K, domain = NonNegativeIntegers)   # Number of k section produced by carcass type R
-model.zkj = Var(model.T, model.indx_rkj, domain = NonNegativeIntegers)  # Number of times cutting pattern j is applied on section k of carcass type R
+model.z = Var(model.T, model.R, domain= NonNegativeIntegers)             # no of carcass r processed in period T
+model.zk = Var(model.T, model.R, model.K, domain = NonNegativeIntegers)  # Number of k section produced by carcass type R
+model.zkj = Var(model.T, model.indx_rkj, domain = NonNegativeIntegers)   # Number of times cutting pattern j is applied on section k of carcass type R
 model.zj = Var(model.T, model.indx_rj, domain = NonNegativeIntegers)     # Number of times cutting pattern j is applied on bird of size R
 
 model.xpr = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Quantity of product P of bird type R produced in time slot 't'
@@ -307,7 +307,7 @@ model.ifs = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Auxil
 model.ifz = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Auxillary variable to check Inv Frozen (Aeging Diff not considered)
 model.xpjr = Var(model.T, model.indx_pjr, domain = NonNegativeReals)     # Quantity of product P of bird type R produced in time slot 't' with cutting pattern J
 
-model.il = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)     # Fresh Inventory of Age L used
+model.il = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)      # Fresh Inventory of Age L used
 
 model.coef_serv_L = Var(model.T,model.C_priority,model.P,model.R,model.P_type,model.M, bounds = (0,1), domain = NonNegativeReals)  # Service Level Fulfillment percent
 model.coef_serv_L_indicator = Var(model.T,model.C_priority,model.P,model.R,model.P_type,model.M, domain = Binary)  # Service Level Fulfillment percent
@@ -409,7 +409,6 @@ model.total_inv_fresh = Expression(model.T,model.P,model.R, rule = expression_ge
 def limit_inv_usage(model,t,p,r):                                                           # Inventory Usage <= Inital Available + produced
     return model.total_inv_fresh[t,p,r] + model.xpr[t,p,r] >= model.fresh_inv_used[t,p,r]
 model.A12Constraint = Constraint(model.T, model.P, model.R, rule = limit_inv_usage)
-##+ model.xpr[t,p,r]
 
 def balance_inv_usage(model,t,p,r):                                                        # Conserve Inventory Quantity between two consecutive days
     if t == 0:                                                                              # inv_fresh for all ages + model.fresh_part_production[t,p,r] =< model.inv_usage[t,p,r])
@@ -417,7 +416,6 @@ def balance_inv_usage(model,t,p,r):                                             
     else:
         return model.total_inv_fresh[t-1,p,r] + model.xpr[t-1,p,r] - model.fresh_inv_used[t-1,p,r] == model.total_inv_fresh[t,p,r]
 model.A12_1Constraint = Constraint(model.T, model.P, model.R, rule = balance_inv_usage)
-# + model.xpr[t-1,p,r]
 
 def freeze_expiring_inventory(model,t,p,r):                                         # Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
     max_life = model.L[p,r]
@@ -520,7 +518,7 @@ model.profit_projected = Expression(rule = expression_gen9)            # Profit 
 # model.F1Constraint = Constraint(rule = force1)
 
 # def force11(model):
-#     return model.x_freezing[0,7,1] == 10
+#     return sum(model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R) == 0
 # model.F11Constraint = Constraint(rule = force11)
 
 # def force12(model):
@@ -593,7 +591,7 @@ if bool(int(config['solver']['print_solution'])):
 summarize_results(model,horizon,indexes, print_tables= bool(int(config['results']['print_tables'])), keep_files = bool(int(config['results']['keep_files'])))
 
 print ("End")
-exit()
+exit(0)
 
 """
 ## SOME CODE PIECES REMOVED ################
@@ -625,5 +623,4 @@ elif scenario_id == 2:
 # def pref_use_older_inv(model,t,p,r):  ## not Required on Priority >>  Inv age at 3 must be finished before starting to use inv at age 2
 #     return
 # model.A131Constraint = Constraint(model.T,model.P,model.R)
-
 """
