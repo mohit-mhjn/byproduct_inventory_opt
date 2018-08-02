@@ -184,7 +184,7 @@ model.indx_o_filling = Set(dimen = 7, initialize = combination_gen16)
 
 ## Loading Input Parameters #############################################
 model.BigM = Param(initialize = 9999999)
-## Highly Controversial Value >> Careful with this while tuning the real dataset
+# Highly Controversial Value >> Careful with this while tuning the real dataset
 # Solvers might sometime fail because of big M values, If in case reduce the value by a factor of 10 and try. It shall work otherwise repeat this step again
 
 def inv_gen1(model,t,r):

@@ -1,3 +1,5 @@
 src/__pycache__/
 src/start_config.ini
 src/output_files/
+src/*.pyc
+
