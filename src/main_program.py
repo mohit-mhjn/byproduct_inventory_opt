@@ -25,7 +25,7 @@ To Do:
 2. planning horizon include in indexes
 3. Warehouse Capacity
 4  MOQ at Lines/CP
-5.
+5
 """
 # Setting Up Environment
 print ("Start")
@@ -328,16 +328,16 @@ model.test = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Test
 
 def carcass_to_section(model,t,r,k):
     return model.zk[t,r,k] == model.z[t,r]
-model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)         # All sections of birds are cut in equal number (no inventroy at section level)
+model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)        # All sections of birds are cut in equal number (no inventroy at section level)
 
 def carcass_in_cutpattern(model,t,r,k):
     lst = [j0 for r0,k0,j0 in model.indx_rkj if r0 == r and k0 == k and j0 in model.Kj[k]]
     return sum(model.zkj[t,r,k,j] for j in lst) == model.zk[t,r,k]
-model.A2Constraint = Constraint(model.T, model.R, model.K, rule = carcass_in_cutpattern)   # Total number of cuts on section k of bird type r is the sum of total applicable cutting pattenrs on (r,k) combinations
+model.A2Constraint = Constraint(model.T, model.R, model.K, rule = carcass_in_cutpattern)     # Total number of cuts on section k of bird type r is the sum of total applicable cutting pattenrs on (r,k) combinations
 
 def cutting_pattern_count_gen(model,t,r,k,j):
     return model.zj[t,r,j] >= model.zkj[t,r,k,j]
-model.A3Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_count_gen)  # Determining number of times cutting pattern J is applied (min value)
+model.A3Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_count_gen)   # Determining number of times cutting pattern J is applied (min value)
 
 def cutting_pattern_count_limiter(model,t,r,j):  # Will become redundant if z is in min(obj)
     return model.zj[t,r,j] <= sum(model.zkj[t,r,k,j] for k in model.Jk[j])
@@ -345,7 +345,7 @@ model.A4Constraint = Constraint(model.T, model.indx_rj, rule = cutting_pattern_c
 
 def cutting_pattern_balancer1(model,t,r,k,j):
     return model.zkj[t,r,k,j] >= model.zj[t,r,j]
-model.A5_1Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer1)   # Cutting pattern of whole bird is equally applied on all the sections
+model.A5_1Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer1)  # Cutting pattern of whole bird is equally applied on all the sections
 
 def cutting_pattern_balancer2(model,t,r,k,j):
     return model.zkj[t,r,k,j] <= model.zj[t,r,j]
@@ -418,6 +418,8 @@ def balance_inv_usage(model,t,p,r):                                             
 model.A12_1Constraint = Constraint(model.T, model.P, model.R, rule = balance_inv_usage)
 
 def freeze_expiring_inventory(model,t,p,r):                                         # Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
+    if list(model.T)[-1] == t:  ### Temporary >> Fixture to numerical residuals (decimal) >>  if planning horizon is t then t+1 is the data req
+        return Constraint.Skip
     max_life = model.L[p,r]
     return model.fresh_inv_qoh[t,p,r,max_life] - model.fresh_inv_used[t,p,r] <= 0
 model.A13Constraint = Constraint(model.T, model.P, model.R, rule = freeze_expiring_inventory)
@@ -507,7 +509,7 @@ def expression_gen9(model):
     return model.selling_gains - sum(model.operations_cost[t] for t in model.T) - sum(model.holding_cost[t] for t in model.T)
 model.profit_projected = Expression(rule = expression_gen9)            # Profit Equation
 
-## Temporary Forcing Constraints (Testing Purpose) #########################
+## Temporary Forcing Constraints (Testing) #########################
 
 # def force1(model):
 #     return model.zj[0,1,1] >= 100
@@ -577,7 +579,7 @@ def obj_fcn(model):
     else:
         raise AssertionError("Invalid Scenario Selection.\n\t\tThe available options are : 1, 2, 3\n\t\tPlease retry with a valid parameter")
         return 0
-model.objctve = Objective(rule = obj_fcn, sense = minimize)
+model.objctve = Objective(rule = obj_fcn,sense = minimize)
 
 ## Using Solver Method ##################################################
 

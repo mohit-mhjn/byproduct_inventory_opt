@@ -62,8 +62,8 @@ def update_coef():
     # Feezing Cost + Capacity
     # Marination Cost + Capacity
     # p_master = pandas.read_csv("input_files/processing.csv")
-    cost_dct['freezing_cost'] = 0
-    cost_dct['marination_cost'] = 0
+    cost_dct['freezing_cost'] = 3333
+    cost_dct['marination_cost'] = 3
     capacity_dct['freezing'] = 414
     capacity_dct['marination'] = 200
 

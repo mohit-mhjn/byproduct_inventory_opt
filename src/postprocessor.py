@@ -160,7 +160,17 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
         for df in output_tables:
             df.to_csv(path_or_buf = "output_files/%s.csv"%(df.name),index = False)
 
-    print ("postprocessing complete!")
+        # Recording the event in the status file
+        import json
+        import datetime
+        with open("input_files/update_status.json","r") as jsonfile:
+            us = dict(json.load(jsonfile))
+            us['output_files'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
+        with open("input_files/update_status.json","w") as jsonfile:
+            json.dump(us,jsonfile)
+        print ("SUCCESS : output files exported!")
+
+    print ("SUCCESS : postprocessing complete!")
     return None
 
 if __name__=="__main__":
