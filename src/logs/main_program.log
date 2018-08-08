@@ -1,0 +1,96 @@
+2018-08-08 16:01:49,563:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:01:49,563:INFO:default scenario = 2
+2018-08-08 16:01:49,563:INFO:selected scenario id == 2
+2018-08-08 16:02:24,515:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:02:24,515:INFO:default scenario = 2
+2018-08-08 16:02:24,515:INFO:selected scenario id == 2
+2018-08-08 16:02:46,167:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:02:46,167:INFO:default scenario = 2
+2018-08-08 16:02:46,167:INFO:selected scenario id == 2
+2018-08-08 16:03:02,903:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:03:02,903:INFO:default scenario = 2
+2018-08-08 16:03:02,903:INFO:selected scenario id == 2
+2018-08-08 16:03:13,076:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:03:13,076:INFO:default scenario = 2
+2018-08-08 16:03:13,076:INFO:selected scenario id == 2
+2018-08-08 16:03:34,319:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:03:34,320:INFO:default scenario = 2
+2018-08-08 16:03:34,320:INFO:selected scenario id == 2
+2018-08-08 16:07:57,295:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:07:57,295:__main__:INFO:default scenario = 2
+2018-08-08 16:07:57,295:__main__:INFO:selected scenario id == 2
+2018-08-08 16:16:10,286:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:17:09,624:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:18:16,954:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:18:47,734:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:19:29,874:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:21:18,093:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:21:18,094:__main__:INFO:default scenario = 2
+2018-08-08 16:21:18,094:__main__:INFO:selected scenario id == 2
+2018-08-08 16:22:16,119:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:22:16,120:__main__:INFO:default scenario = 2
+2018-08-08 16:22:16,120:__main__:INFO:selected scenario id == 2
+2018-08-08 16:24:10,168:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:24:10,169:__main__:INFO:default scenario = 2
+2018-08-08 16:24:10,169:__main__:INFO:selected scenario id == 2
+2018-08-08 16:24:39,630:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:24:39,630:__main__:INFO:default scenario = 2
+2018-08-08 16:24:39,630:__main__:INFO:selected scenario id == 2
+2018-08-08 16:25:56,584:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:25:56,584:__main__:INFO:default scenario = 2
+2018-08-08 16:25:56,584:__main__:INFO:selected scenario id == 2
+2018-08-08 16:26:12,762:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:26:12,762:__main__:INFO:default scenario = 2
+2018-08-08 16:26:12,762:__main__:INFO:selected scenario id == 2
+2018-08-08 16:27:01,487:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:27:01,488:__main__:INFO:default scenario = 2
+2018-08-08 16:27:01,488:__main__:INFO:selected scenario id == 2
+2018-08-08 16:27:51,591:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:28:04,761:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:28:21,787:__main__:WARNING:scenario selection not found 
+	Use argument "--scenario_id n" to define scenario number 
+	Valid options for n = [1,2])
+2018-08-08 16:28:21,787:__main__:INFO:default scenario = 2
+2018-08-08 16:28:21,787:__main__:INFO:selected scenario id == 2

@@ -1,4 +1,4 @@
-print ("\n\t<<<< \m/ may the force be with you \m/ >>>>\n")
+print("\n\t<<<< \m/ may the force be with you \m/ >>>>\n")
 """
 Note: Compatible with Python 3
 
@@ -28,7 +28,7 @@ To Do:
 5
 """
 # Setting Up Environment
-print ("Start")
+print("Start")
 import os
 directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
@@ -37,7 +37,19 @@ from pyomo.environ import *
 import configparser
 config = configparser.ConfigParser()
 config.read('start_config.ini')
+import logging
 
+logger_2 = logging.getLogger(__name__)
+logger_2.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
+file_handler = logging.FileHandler('./logs/main_program.log')
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+logger_2.addHandler(file_handler)
+logger_2.addHandler(stream_handler)
 import sys
 import argparse
 parser = argparse.ArgumentParser()
@@ -45,10 +57,10 @@ parser.add_argument("--scenario_id", help="selection of scenario_id", type=int)
 args = parser.parse_args()
 scenario_id = args.scenario_id
 if scenario_id == None:
-    print ("WARNING: scenario selection not found \n\tUse argument \"--scenario_id n\" to define scenario number \n\tValid options for n = [1,2]")
-    scenario_id = 2   #### Scenario id set : [1,2] >> 1 is working 2 is infeasible
-    print ("default scenario = %d"%(scenario_id))
-print ("selected scenario id == %d"%(scenario_id))
+    logger_2.warning("scenario selection not found \n\tUse argument \"--scenario_id n\" to define scenario number \n\tValid options for n = [1,2])")
+    scenario_id = 2   # Scenario id set : [1,2] >> 1 is working 2 is infeasible
+    logger_2.info("default scenario = %d"%(scenario_id))
+logger_2.info("selected scenario id == %d"%(scenario_id))
 
 # Importing Data processing modules
 from sales_order_reader import get_orders
@@ -63,8 +75,8 @@ from flex_typ import read_flex_typ
 # Importing Solver Fucntion
 from solutionmethod import solve_model
 
-## Parsing Input Data  ###################################################
-## Static Data : Cached
+# Parsing Input Data
+# Static Data : Cached
 indexes = read_masters()
 bom_data = read_combinations()
 cc_data = read_coef()
