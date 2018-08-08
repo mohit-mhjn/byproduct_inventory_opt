@@ -14,6 +14,21 @@ The output is an array of length 2
 note that solved_model_object belongs to pyomo model class
 """
 
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
+file_handler = logging.FileHandler('./logs/solutionmethon.log')
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
+
+logger.addHandler(file_handler)
+
 def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Method
     import datetime
     # Choose the best solution from the trial pool
@@ -42,7 +57,7 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
     if solver_sh not in set(["cbc","cplex"]):
         raise ValueError("Invalid Solver!")
 
-    print ("success! \n loading solver......")
+    logger.info("success! \n loading solver......")
 
     j = 1
     timeout_arguments = {'cplex':'timelimit','cbc':'sec'}
@@ -57,7 +72,8 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
         from pyomo.opt import SolverFactory, SolverManagerFactory
         #model.pprint()
         opt = SolverFactory(solver_sh, solver_io = 'lp')
-        print ('\ninterfacing solver shell :',solver_sh)
+        # print ('\ninterfacing solver shell :',solver_sh)
+        logger.debug('interfacing solver shell : %s'%(solver_sh))
         if engage_neos:
             solver_manager = SolverManagerFactory('neos')
         opt.options[timeout_arguments[solver_sh]]= solver_timeout
@@ -66,9 +82,13 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
         #
         #opt.enable = 'parallel'
         print ('\tsolver options >> \n\n\tTolerance Limits:\n\tmip_gap = %s \n\ttimeout = %s'%(str(mip_gap),str(solver_timeout)))
-        print ("\nProcessing Trial Number :",j)
-        print ("\nJob Triggered at :",str(datetime.datetime.now()))
+        # print ("\nProcessing Trial Number :",j)
+        # print ("\nJob Triggered at :",str(datetime.datetime.now()))
         print ('\ngenerating solution ...... !! please wait !!    \n to interrupt press ctrl+C\n')
+
+        # logger.debug('\tsolver options >> \n\n\tTolerance Limits:\n\tmip_gap = %s \n\ttimeout = %s'%(str(mip_gap),str(solver_timeout)))
+        logger.debug('Processing Trial Number :%d'%(j))
+        logger.debug("Job Triggered")
         try:
             if engage_neos:
                 p_log = False
@@ -96,18 +116,22 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
                 #print (results['Solver'])
                 raise AssertionError("Solver Failed with Termination Status : %s"%(str(results['Solver'][0]['Termination condition'])))
                 exit(0)
-            print ('Terminated by:',str(results['Solver'][0]['Termination condition']))
-            print ("\n\nRetrying...\n\n")
+            # print ('Terminated by:',str(results['Solver'][0]['Termination condition']))
+            # print ("\n\nRetrying...\n\n")
+            logger.info('Terminated by:', str(results['Solver'][0]['Termination condition']))
+            logger.info("\n\nRetrying...\n\n")
         else:
-            print ("SUCCESS: Solution Captured!")
+            # print ("SUCCESS: Solution Captured!")
+            logger.info("Solution Captured!")
             model.solutions.store_to(results)
             #post_process_results()
             break
 
     if p_summary:
         print (results['Problem'])
-        print (results['Solver'])
-    print ("\nSolution Retrived at:",str(datetime.datetime.now()))
+        # print (results['Solver'])
+    # print ("\nSolution Retrived at:",str(datetime.datetime.now()))
+    # logger.info("Solution Retrived")
     return [model,results]
 
 if __name__=="__main__":
