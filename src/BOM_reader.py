@@ -101,7 +101,7 @@ def update_combinations():
     y = pandas.read_csv('input_files/yield.csv')
     y["yield_p"] = y["yield_p"].apply(lambda x: round(x,2))
     y = y[y.yield_p > 0]   # Safeguard
-    y["section"] = y["section"].apply(lambda x: [int(i) for i in str(x)])
+    y["section"] = y["section"].apply(lambda x: [int(i) for i in x.split(".")])
 
     from index_reader import read_masters
     indx = read_masters()

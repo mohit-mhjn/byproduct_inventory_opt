@@ -61,11 +61,15 @@ def update_coef():
 
     # Feezing Cost + Capacity
     # Marination Cost + Capacity
-    # p_master = pandas.read_csv("input_files/processing.csv")
-    cost_dct['freezing_cost'] = 3333
-    cost_dct['marination_cost'] = 3
-    capacity_dct['freezing'] = 414
-    capacity_dct['marination'] = 200
+    process_master = pandas.read_csv("input_files/processing.csv")
+    process_master = process_master.groupby(["machine_type"]).agg({'machine_id':'size','capacity_kgph':'sum','operational_cost':'mean'})
+    process_dct1 = process_master.to_dict(orient = 'dict')["capacity_kgph"]
+    process_dct2 = process_master.to_dict(orient = 'dict')["operational_cost"]
+
+    cost_dct['freezing_cost'] = process_dct1["Freezer"]
+    cost_dct['marination_cost'] = process_dct1["Marinator"]
+    capacity_dct['freezing'] = process_dct2["Freezer"]
+    capacity_dct['marination'] = process_dct2["Marinator"]
 
     # Inventory Holding Cost
     i_master.drop(labels = ['marination'],axis=1,inplace = True)
@@ -106,4 +110,4 @@ if __name__=="__main__":
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
     update_coef()
-    # read_coef()
+    print (read_coef()['cost']['selling_price'][(1,1,'Frozen',1)])

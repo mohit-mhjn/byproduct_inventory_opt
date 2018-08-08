@@ -59,7 +59,7 @@ def update_masters():
 
     # Index of Product Groups
     pg = pandas.read_csv("input_files/product_group.csv")
-    pg["section"] = pg["section"].apply(lambda x: [int(i) for i in str(x)])
+    pg["section"] = pg["section"].apply(lambda x:[int(i) for i in x.split(".")])
     pg_dct = pg.set_index("prod_group_index").to_dict(orient = 'index')
     # print (pg_dct)
 
@@ -100,6 +100,11 @@ def update_masters():
     marination = [1,0]
     c_priority = [1,2]
 
+    ## Distinct Weight range set for flexible bird type products
+    ranges = pandas.read_csv("input_files/flex_range.csv")
+    ranges['bird_typ'] = ranges["bird_typ"].apply(lambda x: [int(y) for y in x.split(".")])
+    range_dct = ranges.set_index(["rng_indx"]).to_dict(orient = "index")
+
     # Collect the required data in a python object
     indexes = {'bird_type':typ_dct,
                'cutting_pattern':cp_dct,
@@ -107,7 +112,8 @@ def update_masters():
                'product_group':pg_dct,
                'marination': marination,
                'c_priority': c_priority,
-               'product_typ': product_typ}
+               'product_typ': product_typ,
+               'typ_ranges':range_dct}
 
     # Dump object in a cache file
     with open("input_files/index_file","wb") as fp:

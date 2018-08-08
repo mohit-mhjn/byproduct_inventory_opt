@@ -2,6 +2,10 @@ class model_input(object):
 
     def __init__(self):
 
+        ## OBJ INFO
+        self.client = "Knex Inc.Test"
+        self.plant = "Hyderabad"
+
         # Indexes
         self.cutting_pattern = None
         self.section = None
@@ -9,6 +13,7 @@ class model_input(object):
         self.marination = None
         self.c_priority = None
         self.product_typ = None
+        self.range_dct = None
 
         # BOM
         self.yield_data = None
@@ -35,9 +40,23 @@ class model_input(object):
         # Conversion Factor
         self.yld_dct = None
 
-if __name__=="__main__":
+        # Flex type
+        self.flex_range1 = None
+        self.flex_range2 = None
+        self.flex_set = None
+
+    def __repr__(self):
+        return self.client + " : " + self.plant
+
+def create_object():
     import os
     import pickle
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    chache_objct = model_input()
+    cache_obj = model_input()
+    with open("input_files/cache/input_object","wb") as fp:
+        pickle.dump(cache_obj,fp)
+
+if __name__=="__main__":
+    print ("This module is the class definition of input object in the main program!")
+    create_object()

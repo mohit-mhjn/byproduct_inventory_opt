@@ -1,4 +1,6 @@
 // This file enlists the input files and corresponding columns in each with their description
+Note :
+delimiter used in input files = "."
 
 1. Bird Type:
     A bird type defines the size of the bird available after the Harvest and used for processing meat.
@@ -141,3 +143,13 @@
     Note: The yield data is used to make a conversion factor as mentioned in the SKU master point.
           The avg signifies that a sku entity can be produced using multiple cutting patterns
           but the difference in the yield of each is not significant, Hence avg of all is taken.
+
+13. flex_range
+    The set of size ranges used for flexible size type SKU.
+
+    key: rng_indx
+
+    rng_indx: A unique identifier for the flexible size type SKU's. (starts with 100+n, That limits the maximum possible size to 99 in number)
+    desc: Description of a size range defined by the customer
+    bird_typ: types of bird included in the type range (delimited by ".")
+    

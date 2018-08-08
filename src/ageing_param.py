@@ -30,7 +30,6 @@ age_combinations_fresh = (set(product_group,bird_type,n) for n (int) in range ly
 ##############################################################
 
 To Do:
-1. Check if this operation can be merged in other
 """
 
 import pandas
@@ -42,7 +41,11 @@ def update_inv_life():
 
     # Inventory Shelf Life from SKU Master
     i_master = pandas.read_csv("input_files/sku_master.csv")
-    i_master = i_master[(i_master.product_type == 'Fresh')]
+    i_master = i_master[(i_master.product_type == 'Fresh') & (i_master.bird_type_index < 99)]
+
+    ## 99 because >> maximum 99 categories of bird types and fresh
+    ## Fresh >> Inventory Ageing for only Fresh products is concerned
+
     i_master.drop(labels = ['marination','product_type'],axis=1,inplace = True)
     i_master.dropna(inplace=True)
     shelf_life = i_master.set_index(['prod_group_index','bird_type_index']).to_dict(orient = 'dict')['shelf_life']

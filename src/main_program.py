@@ -58,6 +58,7 @@ from BOM_reader import read_combinations
 from coef_param import read_coef
 from ageing_param import read_inv_life
 from postprocessor import summarize_results
+from flex_typ import read_flex_typ
 
 # Importing Solver Fucntion
 from solutionmethod import solve_model
@@ -72,6 +73,7 @@ capacity_data = cc_data['capacity']
 inv_life_data = read_inv_life()
 shelf_life_fresh = inv_life_data['shelf_life_fresh']
 age_comb_fresh = inv_life_data['age_combinations_fresh']
+flex_ranges = read_flex_typ()
 
 ## Variable Data
 horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)] # To Do: Get dates through Index
@@ -80,9 +82,14 @@ birds_inv = get_birds(indexes,horizon) # Function to get birds availability at d
 parts_inv = get_parts(indexes,horizon) # Function to get initial parts inventory at part,bird_type and age level (note :age only for fresh)
 fresh_inv = parts_inv['Fresh']        # Separating fresh inventory
 frozen_inv = parts_inv['Frozen']            # Separating frozen inventory
-orders_aggregate = orders["aggregate"]      # Oders agreegated by C_Priority
-order_breakup = orders["breakup"]           # Individual Orders
-order_grouped = orders["grouped_by_product"] # Orders belonging to a SKU key at time t
+
+orders_aggregate = orders["strict"]["aggregate"]      # Oders agreegated by C_Priority
+order_breakup = orders["strict"]["breakup"]           # Individual Orders
+order_grouped = orders["strict"]["grouped_by_product"] # Orders belonging to a SKU key at time t
+
+flex_orders_aggregate = orders["flexible"]["aggregate"]      # Oders agreegated by C_Priority
+flex_order_breakup = orders["flexible"]["breakup"]           # Individual Orders
+flex_order_grouped = orders["flexible"]["grouped_by_product"] # Orders belonging to a SKU key at time t
 
 ## MILP Model Initialization #############################################
 model = ConcreteModel()
@@ -96,12 +103,9 @@ model.R = Set(initialize= indexes['bird_type'].keys())         # type of carcass
 model.P_type = Set(initialize = indexes['product_typ'])          # Type of Products
 model.M = Set(initialize = indexes['marination'])                # Marination Indicator
 model.C_priority = Set(initialize = indexes['c_priority'])       # Customer Priority Indicator
-model.O = Set(initialize = order_breakup.keys())                 # Order Id's
-
-model.RNG = Set(initialize = ["FLEX"])                           # Testing
-flex_comb1 = {"FLEX":[1,2,3,4,5,6]}
-flex_comb2 = { 1:["FLEX"], 2:["FLEX"], 3:["FLEX"], 4:["FLEX"], 5:["FLEX"], 6:["FLEX"]}
-flex_set = [("FLEX",1),("FLEX",2),("FLEX",3),("FLEX",4),("FLEX",5),("FLEX",6)]
+model.O = Set(initialize = order_breakup.keys())                 # Order Id's for strict bird type products
+model.RNG = Set(initialize = indexes['typ_ranges'].keys())      # Distinct range sets of flexible size range
+model.flex_O = Set(initialize = flex_order_breakup.keys())      # Order Id's for flexible bird type products
 
 ## Generating combinations ###############################################
 def combination_gen1(model,j):
@@ -187,24 +191,21 @@ def combination_gen16(model):                                        #  Combinat
     return list(order_iter_set)
 model.indx_o_filling = Set(dimen = 7, initialize = combination_gen16)
 
-###################################################################################################
-
 def combination_gen17(model,rng):                                        # Bird Types for several flexible weight ranges
-    global flex_comb1
-    return flex_comb1[rng]
+    global flex_ranges
+    return flex_ranges["rng_to_type"][rng]
 model.wt_set1 = Set(model.RNG, initialize = combination_gen17)
 
 def combination_gen18(model,r):                                        #  Flexible weight ranges for weight R
-    global flex_comb2
-    return flex_comb2[r]
+    global flex_ranges
+    return flex_ranges["type_to_rng"]
 model.wt_set2 = Set(model.R, initialize = combination_gen18)
 
 def combination_gen19(model):                                   #  Flexible weight range v/s weight combinations
-    global flex_set
-    return flex_set
+    global flex_ranges
+    return flex_ranges["flex_rng_comb"]
 model.wt_set3 = Set(dimen = 2, initialize = combination_gen19)
 
-###################################################################################################
 ## Loading Input Parameters #############################################
 model.BigM = Param(initialize = 9999999)
 # Highly Controversial Value >> Careful with this while tuning the real dataset
@@ -289,7 +290,10 @@ model.inventory_holding_cost = Param(model.P,model.R,model.P_type, initialize = 
 
 def cost_gen5(model,p,r,t,m):
     global cost_data
-    return cost_data['selling_price'][(p,r,t,m)]
+    if t == "Frozen" and m == 1: # >> Removed from Consideration frozen marinated sku
+        return 0
+    else:
+        return cost_data['selling_price'][(p,r,t,m)]
 model.selling_price = Param(model.P,model.R,model.P_type,model.M, initialize = cost_gen5)  # Selling Price (profit Cost Coef) selling price of product p bird type R against fresh/frozen and marination 1/0
 
 def sla_fulfillment(model,o):
@@ -318,12 +322,17 @@ def order_priority_gen(model,o):
     return order_breakup[o]["priority"]
 model.order_priority = Param(model.O, initialize = order_priority_gen)             # C_Priority of an oder
 
-# def sales_flex(model,t,p,rng):                                                      # Sales order for Flex type SKU
-#     if (t,p,rng) in flex_typ_orders.keys():
-#         return flex_typ_orders[(t,p)]
-#     else:
-#         return 0
-# model.flex_sales_order = Param(model.T, model.P, model.RNG, initialize = sales_flex)
+## Following if for flexible >> Under Testing
+
+def order_gen3(model,t,c,p,rng,typ,m):                                                     # Sales order for Flex type SKU
+    global flex_orders_aggregate
+    global horizon
+    dt = str(horizon[t])
+    if (dt,c,p,rng,typ,m) in flex_orders_aggregate.keys():
+        return flex_orders_aggregate[(dt,c,p,rng,typ,m)]
+    else:
+        return 0
+model.flex_sales_order = Param(model.T,model.C_priority,model.P,model.RNG,model.P_type,[0],initialize = order_gen3) # Only m = 0 >> No Marination for flex (not in scope)
 
 ## Variable Objects #######################################
 
