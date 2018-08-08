@@ -55,7 +55,7 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
     threads = int(config['solver']['threads'])
 
     if solver_sh not in set(["cbc","cplex"]):
-        raise ValueError("Invalid Solver!")
+        raise AssertionError("Invalid Solver!, Error Code : 200B")
 
     logger.info("success! \n loading solver......")
 
@@ -114,7 +114,7 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
             if j == number_of_trials + 1:
                 #print (results['Problem'])
                 #print (results['Solver'])
-                raise AssertionError("Solver Failed with Termination Status : %s"%(str(results['Solver'][0]['Termination condition'])))
+                raise AssertionError("Solver Failed with Termination Status : %s \nError Code : 200C"%(str(results['Solver'][0]['Termination condition'])))
                 exit(0)
             # print ('Terminated by:',str(results['Solver'][0]['Termination condition']))
             # print ("\n\nRetrying...\n\n")

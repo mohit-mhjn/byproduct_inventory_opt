@@ -30,6 +30,8 @@ import datetime
 def get_orders(indexes, horizon):
     # Get Orders
     orders = pandas.read_csv("input_files/sales_order.csv")
+    if orders.empty:
+        raise ImportError("No orders found; error code: 100A")
 
     # Get Conversion Factor
     from conv_factor import get_conv_factor
@@ -50,7 +52,16 @@ def get_orders(indexes, horizon):
     orders = orders.merge(i_master, on = "sku_index")
     orders = orders.merge(c_master, on = "customer_number")
     orders = orders.merge(yld, on =["prod_group_index","bird_type_index"])
+
+    if orders.empty:
+        raise ImportError("No orders found; error code: 100B")
+
     orders['order_qty'] = orders.apply(lambda row: max(row['order_weight'],row['order_count']*row['conv_factor']),axis = 1) # Converting orders to weight
+    orders = orders[(orders.order_qty > 0)]
+
+    if orders.empty:
+        raise ImportError("No orders found; error code: 100C")
+
     order_breakup_df = orders.filter(items = ["date","priority","order_number","prod_group_index","bird_type_index","product_type","marination","customer_sla","selling_price","order_qty"])
     order_breakup = order_breakup_df.set_index(["order_number"]).to_dict(orient = 'index')
     # "date","priority",

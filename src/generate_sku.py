@@ -55,6 +55,12 @@ with open("input_files/product_group.csv") as infile2:
 ## SKU Master >>
 
 C = pandas.DataFrame(list(itertools.product(k2,k1,['Fresh','Frozen'],[1,0])))
-C.columns = ['product_group','bird_type','product_type','marination',]
+C.columns = ['product_group','bird_type','product_type','marination']
+C = C.drop(C[(C.product_type == "Frozen") & (C.marination == 1)].index)
+C.reset_index(inplace = True, drop = True)
 C['active'] = 1
-C.to_csv("input_files/sku_master.csv", index=True)
+C['selling_price'] = None
+C['holding_cost'] = None
+C['shelf_life'] = None
+print (C)
+#C.to_csv("input_files/sku_master.csv", index=True)

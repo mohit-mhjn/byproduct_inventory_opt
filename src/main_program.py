@@ -25,7 +25,7 @@ To Do:
 2. planning horizon include in indexes
 3. Warehouse Capacity
 4  MOQ at Lines/CP
-5.
+5
 """
 # Setting Up Environment
 print("Start")
@@ -109,6 +109,11 @@ model.P_type = Set(initialize = indexes['product_typ'])          # Type of Produ
 model.M = Set(initialize = indexes['marination'])                # Marination Indicator
 model.C_priority = Set(initialize = indexes['c_priority'])       # Customer Priority Indicator
 model.O = Set(initialize = order_breakup.keys())                 # Order Id's
+
+model.RNG = Set(initialize = ["FLEX"])                           # Testing
+flex_comb1 = {"FLEX":[1,2,3,4,5,6]}
+flex_comb2 = { 1:["FLEX"], 2:["FLEX"], 3:["FLEX"], 4:["FLEX"], 5:["FLEX"], 6:["FLEX"]}
+flex_set = [("FLEX",1),("FLEX",2),("FLEX",3),("FLEX",4),("FLEX",5),("FLEX",6)]
 
 ## Generating combinations ###############################################
 def combination_gen1(model,j):
@@ -194,9 +199,27 @@ def combination_gen16(model):                                        #  Combinat
     return list(order_iter_set)
 model.indx_o_filling = Set(dimen = 7, initialize = combination_gen16)
 
+###################################################################################################
+
+def combination_gen17(model,rng):                                        # Bird Types for several flexible weight ranges
+    global flex_comb1
+    return flex_comb1[rng]
+model.wt_set1 = Set(model.RNG, initialize = combination_gen17)
+
+def combination_gen18(model,r):                                        #  Flexible weight ranges for weight R
+    global flex_comb2
+    return flex_comb2[r]
+model.wt_set2 = Set(model.R, initialize = combination_gen18)
+
+def combination_gen19(model):                                   #  Flexible weight range v/s weight combinations
+    global flex_set
+    return flex_set
+model.wt_set3 = Set(dimen = 2, initialize = combination_gen19)
+
+###################################################################################################
 ## Loading Input Parameters #############################################
 model.BigM = Param(initialize = 9999999)
-## Highly Controversial Value >> Careful with this while tuning the real dataset
+# Highly Controversial Value >> Careful with this while tuning the real dataset
 # Solvers might sometime fail because of big M values, If in case reduce the value by a factor of 10 and try. It shall work otherwise repeat this step again
 
 def inv_gen1(model,t,r):
@@ -307,6 +330,13 @@ def order_priority_gen(model,o):
     return order_breakup[o]["priority"]
 model.order_priority = Param(model.O, initialize = order_priority_gen)             # C_Priority of an oder
 
+# def sales_flex(model,t,p,rng):                                                      # Sales order for Flex type SKU
+#     if (t,p,rng) in flex_typ_orders.keys():
+#         return flex_typ_orders[(t,p)]
+#     else:
+#         return 0
+# model.flex_sales_order = Param(model.T, model.P, model.RNG, initialize = sales_flex)
+
 ## Variable Objects #######################################
 
 model.z = Var(model.T, model.R, domain= NonNegativeIntegers)             # no of carcass r processed in period T
@@ -335,21 +365,29 @@ model.vm_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)      
 model.u_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Satisfied Frozen
 model.v_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Unsatisfied Frozen
 
-model.test = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Test
+# model.a_fresh_flex = Var(model.T,model.P,model.wt_set3,domain = NonNegativeReals)
+# model.u_fresh_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
+# model.v_fresh_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
+
+# model.a_frozen_flex = Var(model.T,model.P,model.wt_set3,domain = NonNegativeReals)
+# model.u_frozen_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
+# model.v_frozen_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
+
+#model.test = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Test
 ## Constraints ##############################################
 
 def carcass_to_section(model,t,r,k):
     return model.zk[t,r,k] == model.z[t,r]
-model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)         # All sections of birds are cut in equal number (no inventroy at section level)
+model.A1Constraint = Constraint(model.T, model.R, model.K, rule = carcass_to_section)        # All sections of birds are cut in equal number (no inventroy at section level)
 
 def carcass_in_cutpattern(model,t,r,k):
     lst = [j0 for r0,k0,j0 in model.indx_rkj if r0 == r and k0 == k and j0 in model.Kj[k]]
     return sum(model.zkj[t,r,k,j] for j in lst) == model.zk[t,r,k]
-model.A2Constraint = Constraint(model.T, model.R, model.K, rule = carcass_in_cutpattern)   # Total number of cuts on section k of bird type r is the sum of total applicable cutting pattenrs on (r,k) combinations
+model.A2Constraint = Constraint(model.T, model.R, model.K, rule = carcass_in_cutpattern)     # Total number of cuts on section k of bird type r is the sum of total applicable cutting pattenrs on (r,k) combinations
 
 def cutting_pattern_count_gen(model,t,r,k,j):
     return model.zj[t,r,j] >= model.zkj[t,r,k,j]
-model.A3Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_count_gen)  # Determining number of times cutting pattern J is applied (min value)
+model.A3Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_count_gen)   # Determining number of times cutting pattern J is applied (min value)
 
 def cutting_pattern_count_limiter(model,t,r,j):  # Will become redundant if z is in min(obj)
     return model.zj[t,r,j] <= sum(model.zkj[t,r,k,j] for k in model.Jk[j])
@@ -357,7 +395,7 @@ model.A4Constraint = Constraint(model.T, model.indx_rj, rule = cutting_pattern_c
 
 def cutting_pattern_balancer1(model,t,r,k,j):
     return model.zkj[t,r,k,j] >= model.zj[t,r,j]
-model.A5_1Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer1)   # Cutting pattern of whole bird is equally applied on all the sections
+model.A5_1Constraint = Constraint(model.T, model.indx_rkj, rule = cutting_pattern_balancer1)  # Cutting pattern of whole bird is equally applied on all the sections
 
 def cutting_pattern_balancer2(model,t,r,k,j):
     return model.zkj[t,r,k,j] <= model.zj[t,r,j]
@@ -382,10 +420,10 @@ model.A8Constraint = Constraint(model.T, model.P, model.R, rule = fresh_part_pro
 ## Inventroy Balance Equations and Constraints ##########################################
 
 def expression_gen1(model,t,p,r):
-    return  model.u_fresh[t,p,r] + model.x_freezing[t,p,r] + model.x_marination[t,p,r]
-model.fresh_inv_used = Expression(model.T, model.P, model.R, rule = expression_gen1)        # Quantity of Fresh Inventory used is equal to inv q used in freezing + q used in marination + q sold in fresh form
+    return  model.u_fresh[t,p,r] + model.x_freezing[t,p,r] + model.x_marination[t,p,r]    #+++++ FLEX FRESH ++++ >>>>sum(model.a_fresh_flex[t,p,rng,r] for rng in model.wt_set2[r])
+model.fresh_inv_used = Expression(model.T, model.P, model.R, rule = expression_gen1)      # Quantity of Fresh Inventory used is equal to inv q used in freezing + q used in marination + q sold in fresh form
 
-def inventory_used_for_age(model,t,p,r):                                                    # Quantity of Fresh Inv used = Qunaity of Fresh Inv used for all ages
+def inventory_used_for_age(model,t,p,r):                                                  # Quantity of Fresh Inv used = Qunaity of Fresh Inv used for all ages
     return sum(model.il[t,p,r,l] for l in range(int(model.L[p,r]) + 1)) == model.fresh_inv_used[t,p,r]
 model.A9Constraint = Constraint(model.T, model.P, model.R, rule = inventory_used_for_age)
 
@@ -403,7 +441,7 @@ def expression_gen3(model,t,p,r):
     if t == 0:
         return model.initial_inv_frozen[p,r]
     else:
-        return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r]
+        return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r]     # +++++ FLEX FROZEN +++++ >>>>sum(model.a_frozen[t,p,rng,r] for rng in model.wt_set2)
 model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen3)            # Expression to derive Frozen Inventroy(opening) quantity on hand total without age
 
 def inv_requirement_balance1(model,t,p,r,l):
@@ -430,6 +468,8 @@ def balance_inv_usage(model,t,p,r):                                             
 model.A12_1Constraint = Constraint(model.T, model.P, model.R, rule = balance_inv_usage)
 
 def freeze_expiring_inventory(model,t,p,r):                                         # Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
+    if list(model.T)[-1] == t:  ### Temporary >> Fixture to numerical residuals (decimal) >>  if planning horizon is t then t+1 is the data req
+        return Constraint.Skip
     max_life = model.L[p,r]
     return model.fresh_inv_qoh[t,p,r,max_life] - model.fresh_inv_used[t,p,r] <= 0
 model.A13Constraint = Constraint(model.T, model.P, model.R, rule = freeze_expiring_inventory)
@@ -485,9 +525,17 @@ model.requirement_balance7 = Constraint(model.T, model.P, model.R, rule = order_
 def order_fulfillment_limiter(model,o):
     return model.order_qty_supplied[o] <= model.order_qty[o]
 model.requirement_balance8 = Constraint(model.O, rule = order_fulfillment_limiter)                # Max Quantity supplied in order <= sales order qty
+"""
+def flex_size_fulfillment1(model,t,p,rng):
+    return sum(model.a_fresh_flex[t,p,rng,r] for r in model.wt_set1[rng]) == model.u_fresh_flex[t,p,rng]
+model.cons1 = Constraint(model.T,model.P,model.RNG, rule = flex_size_fulfillment1)
 
+def flex_size_fulfillment2(model,t,p,rng):
+    return model.u_fresh_flex[t,p,rng] + model.v_fresh_flex[t,p,rng] == model.flex_sales_order[t,p,rng]
+model.cons2 = Constraint(model.T, model.P, model.RNG, rule = flex_size_fulfillment2)
+"""
 ## Capacity Constraints ###################################  (Checking on UOM Pending)
-
+"""
 def capacity_gen1(model,t,p,r):
     return model.x_freezing[t,p,r] <= model.process_capacity['freezing']*24
 model.A14Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen1)
@@ -499,7 +547,7 @@ model.A15Constraint = Constraint(model.T, model.P, model.R, rule = capacity_gen2
 def capacity_gen3(model,t,j):
     return sum(model.zkj[t,r,k,j] for r,k,j1 in model.indx_rkj if j == j1) <= 24*model.cutting_capacity[j]
 model.A16Constraint = Constraint(model.T, model.J, rule  = capacity_gen3)
-
+"""
 # Costing Expressions : selling_gains - Op Cost - Inv holding ##########################
 
 def expression_gen6(model):
@@ -519,7 +567,7 @@ def expression_gen9(model):
     return model.selling_gains - sum(model.operations_cost[t] for t in model.T) - sum(model.holding_cost[t] for t in model.T)
 model.profit_projected = Expression(rule = expression_gen9)            # Profit Equation
 
-## Temporary Forcing Constraints (Testing Purpose) #########################
+## Temporary Forcing Constraints (Testing) #########################
 
 # def force1(model):
 #     return model.zj[0,1,1] >= 100
@@ -579,7 +627,15 @@ def obj_fcn(model):
         def produce_frozen_for_p1(model,t,p,r):
             return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
         model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)   # Total Sales > Priority Fulfillment
-
+        """
+        # def produce_flex(model,t,p,rng):
+        #     return model.u_fresh_flex[t,p,rng] >= model.flex_sales_order[t,p,rng]*0.7
+        # model.SC3_Constraint66 = Constraint(model.T, model.P, model.RNG, rule = produce_flex)
+        #
+        # def test_supply(model,t,r):
+        #     return model.z[t,r] <= 0
+        # model.SC3_Constraint444 = Constraint(model.T,[3,4],rule = test_supply)
+        """
         def order_commitment(model,o):
             return model.order_qty_supplied[o] >= model.order_sla[o]
         model.SC3_Constraint4 = Constraint(model.O, rule = order_commitment)      # For each order >> Quantity supplied > committed Service Level
@@ -587,9 +643,9 @@ def obj_fcn(model):
         return -1*model.profit_projected
         # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
     else:
-        raise AssertionError("Invalid Scenario Selection.\n\t\tThe available options are : 1, 2, 3\n\t\tPlease retry with a valid parameter")
+        raise AssertionError("Invalid Scenario Selection.\n\t\tThe available options are : 1, 2, 3\n\t\tPlease retry with a valid parameter\n\t\tError Code 200A")
         return 0
-model.objctve = Objective(rule = obj_fcn, sense = minimize)
+model.objctve = Objective(rule = obj_fcn,sense = minimize)
 
 ## Using Solver Method ##################################################
 
@@ -598,6 +654,7 @@ model = solution[0]
 result = solution[1]
 if bool(int(config['solver']['print_solution'])):
     print (result)
+
 
 ## post processing to print result tables ########################################
 summarize_results(model,horizon,indexes, print_tables= bool(int(config['results']['print_tables'])), keep_files = bool(int(config['results']['keep_files'])))

@@ -52,31 +52,43 @@ import json
 import datetime
 
 def update_masters():
-
+    # Index of Bird Types
     typ = pandas.read_csv("input_files/bird_type.csv")
     typ_dct = typ.set_index("bird_type_index").to_dict(orient = 'index')
     # print (typ_dct)
 
+    # Index of Product Groups
     pg = pandas.read_csv("input_files/product_group.csv")
     pg["section"] = pg["section"].apply(lambda x: [int(i) for i in str(x)])
     pg_dct = pg.set_index("prod_group_index").to_dict(orient = 'index')
     # print (pg_dct)
 
+    # Index of sections
     sec = pandas.read_csv("input_files/section.csv")
     sec_dct = sec.set_index("section_index").to_dict(orient = 'index')
 
+    # Index of cutting patterns
     cp = pandas.read_csv("input_files/cutting_pattern.csv")
     cp['rate'] = cp['rate'].apply(lambda x: round(x,5))
     cp['capacity_kgph'] = cp['capacity_kgph'].apply(lambda x: round(x,5))
     cp_dct = cp.set_index("cutting_pattern").to_dict(orient = 'index')
 
+    # Mapping Cutting pattern vs Sections
     for cut in cp_dct.keys():
         df_tmp = cp[(cp.cutting_pattern == cut)]
         cp_dct[cut]['section'] = list(set(df_tmp['section']))
 
+    # Mapping Section vs cutting_pattern >> Inverse of previous
     for s in sec_dct.keys():
         df_tmp = cp[(cp.section == s)]
         sec_dct[s]['cutting_pattern'] = list(set(df_tmp['cutting_pattern']))
+
+    sec_cut_p_not_available = []  ## >> Need to remove these sections >> Log the warning event and record the list
+    for idx in list(sec_dct.keys()):
+        if sec_dct[idx]['cutting_pattern'] == []:
+            sec_cut_p_not_available.append(idx)
+            del sec_dct[idx]                           # Removing Section
+    # print (sec_cut_p_not_available)
 
     for s in sec_dct.keys():
         df_tmp = pg[pg.section.map(set([s]).issubset)]
