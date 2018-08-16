@@ -99,9 +99,9 @@ orders_aggregate = orders["strict"]["aggregate"]      # Oders agreegated by C_Pr
 order_breakup = orders["strict"]["breakup"]           # Individual Orders
 order_grouped = orders["strict"]["grouped_by_product"] # Orders belonging to a SKU key at time t
 
-flex_orders_aggregate = orders["flexible"]["aggregate"]      # Oders agreegated by C_Priority
-flex_order_breakup = orders["flexible"]["breakup"]           # Individual Orders
-flex_order_grouped = orders["flexible"]["grouped_by_product"] # Orders belonging to a SKU key at time t
+flex_orders_aggregate = orders["flexible"]["aggregate"]        # Oders agreegated by C_Priority
+flex_order_breakup = orders["flexible"]["breakup"]             # Individual Orders
+flex_order_grouped = orders["flexible"]["grouped_by_product"]  # Orders belonging to a SKU key at time t
 
 ## MILP Model Initialization #############################################
 model = ConcreteModel()
@@ -210,13 +210,29 @@ model.wt_set1 = Set(model.RNG, initialize = combination_gen17)
 
 def combination_gen18(model,r):                                        #  Flexible weight ranges for weight R
     global flex_ranges
-    return flex_ranges["type_to_rng"]
+    return flex_ranges["type_to_rng"][r]
 model.wt_set2 = Set(model.R, initialize = combination_gen18)
 
 def combination_gen19(model):                                   #  Flexible weight range v/s weight combinations
     global flex_ranges
     return flex_ranges["flex_rng_comb"]
 model.wt_set3 = Set(dimen = 2, initialize = combination_gen19)
+
+#####  +++++++++++++ FLEX Orders Grouped ++++++
+
+flex_order_iter_set = set()
+def combination_gen20(model,t,c,p,r,typ,m):       # Time Consuming >> Temporarily Fine
+    global flex_order_grouped
+    dt = str(horizon[t])
+    if (dt,c,p,r,typ,m) in flex_order_grouped.keys():
+        print (dt)
+        order_set = flex_order_grouped[(dt,c,p,r,typ,m)]
+        for o in order_set:
+            flex_order_iter_set.add((t,c,p,r,typ,m,o))
+        return order_set
+    else:
+        return []
+model.flex_order_group = Set(model.T,model.C_priority,model.P, model.RNG, model.P_type, model.M, initialize = combination_gen20)
 
 ## Loading Input Parameters #############################################
 model.BigM = Param(initialize = 9999999)
@@ -334,7 +350,7 @@ def order_priority_gen(model,o):
     return order_breakup[o]["priority"]
 model.order_priority = Param(model.O, initialize = order_priority_gen)             # C_Priority of an oder
 
-## Following if for flexible >> Under Testing
+## Following is for flexible >> Under Testing
 
 def order_gen3(model,t,c,p,rng,typ,m):                                                     # Sales order for Flex type SKU
     global flex_orders_aggregate
@@ -344,7 +360,17 @@ def order_gen3(model,t,c,p,rng,typ,m):                                          
         return flex_orders_aggregate[(dt,c,p,rng,typ,m)]
     else:
         return 0
-model.flex_sales_order = Param(model.T,model.C_priority,model.P,model.RNG,model.P_type,[0],initialize = order_gen3) # Only m = 0 >> No Marination for flex (not in scope)
+model.flex_sales_order = Param(model.T,model.C_priority,model.P,model.RNG,model.P_type,[0],initialize = order_gen3)   # Only m = 0 >> No Marination for flex (not in scope)
+
+def flex_sla_fulfillment(model,o):
+    global flex_order_breakup
+    return flex_order_breakup[o]["customer_sla"]*flex_order_breakup[o]["order_qty"]
+model.flex_order_sla = Param(model.flex_O, initialize = flex_sla_fulfillment)                        # Service Level Agreement against each order line item
+
+def flex_order_qty_gen(model,o):
+    global flex_order_breakup
+    return flex_order_breakup[o]["order_qty"]
+model.flex_order_qty = Param(model.flex_O, initialize = flex_order_qty_gen)                         # Quantity contained in a order
 
 ## Variable Objects #######################################
 
@@ -362,7 +388,9 @@ model.il = Var(model.T, model.INV_Fresh, domain = NonNegativeReals)      # Fresh
 
 model.coef_serv_L = Var(model.T,model.C_priority,model.P,model.R,model.P_type,model.M, bounds = (0,1), domain = NonNegativeReals)  # Service Level Fulfillment percent
 model.coef_serv_L_indicator = Var(model.T,model.C_priority,model.P,model.R,model.P_type,model.M, domain = Binary)  # Service Level Fulfillment percent
+
 model.order_qty_supplied = Var(model.O, domain = NonNegativeReals)              # For an order O, how much quantity is fulfilled
+model.flex_order_qty_supplied = Var(model.flex_O, domain = NonNegativeReals)    # Quantity supplied in flexible size type orders
 
 model.x_freezing = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Quantity of Product P of bird type R converted from Fresh to Frozen
 model.x_marination = Var(model.T,model.P,model.R, domain = NonNegativeReals)    # Quantity of Product P of bird type R converted from Fresh to Fresh Marinated
@@ -374,13 +402,9 @@ model.vm_fresh = Var(model.T, model.P, model.R, domain = NonNegativeReals)      
 model.u_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Satisfied Frozen
 model.v_frozen = Var(model.T, model.P, model.R, domain = NonNegativeReals)      # Demand Unsatisfied Frozen
 
-# model.a_fresh_flex = Var(model.T,model.P,model.wt_set3,domain = NonNegativeReals)
-# model.u_fresh_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
-# model.v_fresh_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
-
-# model.a_frozen_flex = Var(model.T,model.P,model.wt_set3,domain = NonNegativeReals)
-# model.u_frozen_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
-# model.v_frozen_flex = Var(model.T, model.P, model.RNG, domain = NonNegativeReals)
+model.a_flex = Var(model.T, model.P, model.wt_set3, model.P_type, domain = NonNegativeReals)  # Breakup of demand satisfied for each product from each size against each rng element
+model.u_flex = Var(model.T, model.P, model.RNG, model.P_type, domain = NonNegativeReals)      # Demand Satisfied, flexible sku types
+model.v_flex = Var(model.T, model.P, model.RNG, model.P_type, domain = NonNegativeReals)      # Demand Unsatisfied flexible, flexible sku types
 
 #model.test = Var(model.T, model.P, model.R, domain = NonNegativeReals)    # Test
 ## Constraints ##############################################
@@ -429,7 +453,7 @@ model.A8Constraint = Constraint(model.T, model.P, model.R, rule = fresh_part_pro
 ## Inventroy Balance Equations and Constraints ##########################################
 
 def expression_gen1(model,t,p,r):
-    return  model.u_fresh[t,p,r] + model.x_freezing[t,p,r] + model.x_marination[t,p,r]    #+++++ FLEX FRESH ++++ >>>>sum(model.a_fresh_flex[t,p,rng,r] for rng in model.wt_set2[r])
+    return  model.u_fresh[t,p,r] + model.x_freezing[t,p,r] + model.x_marination[t,p,r] + sum(model.a_flex[t,p,rng,r,"Fresh"] for rng in model.wt_set2[r])
 model.fresh_inv_used = Expression(model.T, model.P, model.R, rule = expression_gen1)      # Quantity of Fresh Inventory used is equal to inv q used in freezing + q used in marination + q sold in fresh form
 
 def inventory_used_for_age(model,t,p,r):                                                  # Quantity of Fresh Inv used = Qunaity of Fresh Inv used for all ages
@@ -450,7 +474,7 @@ def expression_gen3(model,t,p,r):
     if t == 0:
         return model.initial_inv_frozen[p,r]
     else:
-        return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r]     # +++++ FLEX FROZEN +++++ >>>>sum(model.a_frozen[t,p,rng,r] for rng in model.wt_set2)
+        return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r] - sum(model.a_flex[t,p,rng,r,"Frozen"] for rng in model.wt_set2[r])
 model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen3)            # Expression to derive Frozen Inventroy(opening) quantity on hand total without age
 
 def inv_requirement_balance1(model,t,p,r,l):
@@ -478,7 +502,7 @@ model.A12_1Constraint = Constraint(model.T, model.P, model.R, rule = balance_inv
 
 def freeze_expiring_inventory(model,t,p,r):                                         # Freeze Inv at the age = shelf life  >> need to check 'l' or 'l-1'
     if list(model.T)[-1] == t:  ### Temporary >> Fixture to numerical residuals (decimal) >>  if planning horizon is t then t+1 is the data req
-        return Constraint.Skip
+        return Constraint.Skip  ###        +++++++++++++++++++++++++++++++++++++++++++++  Need Revision +++++++++++++++++++++++++++++++++
     max_life = model.L[p,r]
     return model.fresh_inv_qoh[t,p,r,max_life] - model.fresh_inv_used[t,p,r] <= 0
 model.A13Constraint = Constraint(model.T, model.P, model.R, rule = freeze_expiring_inventory)
@@ -534,15 +558,39 @@ model.requirement_balance7 = Constraint(model.T, model.P, model.R, rule = order_
 def order_fulfillment_limiter(model,o):
     return model.order_qty_supplied[o] <= model.order_qty[o]
 model.requirement_balance8 = Constraint(model.O, rule = order_fulfillment_limiter)                # Max Quantity supplied in order <= sales order qty
-"""
-def flex_size_fulfillment1(model,t,p,rng):
-    return sum(model.a_fresh_flex[t,p,rng,r] for r in model.wt_set1[rng]) == model.u_fresh_flex[t,p,rng]
-model.cons1 = Constraint(model.T,model.P,model.RNG, rule = flex_size_fulfillment1)
 
-def flex_size_fulfillment2(model,t,p,rng):
-    return model.u_fresh_flex[t,p,rng] + model.v_fresh_flex[t,p,rng] == model.flex_sales_order[t,p,rng]
-model.cons2 = Constraint(model.T, model.P, model.RNG, rule = flex_size_fulfillment2)
-"""
+def flex_size_fulfillment1(model,t,p,rng,typ):
+    return sum(model.a_flex[t,p,rng,r,typ] for r in model.wt_set1[rng]) == model.u_flex[t,p,rng,typ]
+model.fulfillment1 = Constraint(model.T,model.P,model.RNG, model.P_type, rule = flex_size_fulfillment1)
+
+def flex_size_fulfillment2(model,t,p,rng,typ):
+    return model.u_flex[t,p,rng,typ] + model.v_flex[t,p,rng,typ] == sum(model.flex_sales_order[t,c,p,rng,typ,0] for c in model.C_priority)
+model.fullfillment2 = Constraint(model.T, model.P, model.RNG, model.P_type, rule = flex_size_fulfillment2)
+
+def order_requirement_balance4(model,t,p,rng):
+    lst_p1 = set(model.flex_order_group[t,1,p,rng,"Fresh",0])
+    lst_p2 = set(model.flex_order_group[t,2,p,rng,"Fresh",0])
+    my_set = lst_p1.union(lst_p2)
+    if my_set == set():
+        return Constraint.Skip
+    else:
+        return model.u_flex[t,p,rng,"Fresh"] == sum(model.flex_order_qty_supplied[o] for o in my_set)
+model.requirement_balance9 = Constraint(model.T, model.P, model.RNG, rule = order_requirement_balance4)
+
+def order_requirement_balance5(model,t,p,rng):
+    lst_p1 = set(model.flex_order_group[t,1,p,rng,"Frozen",0])
+    lst_p2 = set(model.flex_order_group[t,2,p,rng,"Frozen",0])
+    my_set = lst_p1.union(lst_p2)
+    if my_set == set():
+        return Constraint.Skip
+    else:
+        return model.u_flex[t,p,rng,"Frozen"] == sum(model.flex_order_qty_supplied[o] for o in my_set)
+model.requirement_balance10 = Constraint(model.T, model.P, model.RNG, rule = order_requirement_balance5)
+
+def flex_order_fulfillment_limiter(model,o):
+    return model.flex_order_qty_supplied[o] <= model.flex_order_qty[o]
+model.requirement_balance11 = Constraint(model.flex_O, rule = flex_order_fulfillment_limiter)                # Max Quantity supplied in order <= sales order qty
+
 ## Capacity Constraints ###################################  (Checking on UOM Pending)
 """
 def capacity_gen1(model,t,p,r):
@@ -636,18 +684,18 @@ def obj_fcn(model):
         def produce_frozen_for_p1(model,t,p,r):
             return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
         model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)   # Total Sales > Priority Fulfillment
-        """
-        # def produce_flex(model,t,p,rng):
-        #     return model.u_fresh_flex[t,p,rng] >= model.flex_sales_order[t,p,rng]*0.7
-        # model.SC3_Constraint66 = Constraint(model.T, model.P, model.RNG, rule = produce_flex)
-        #
-        # def test_supply(model,t,r):
-        #     return model.z[t,r] <= 0
-        # model.SC3_Constraint444 = Constraint(model.T,[3,4],rule = test_supply)
-        """
+
+        def produce_flex_for_p1(model,t,p,rng,typ):   # Both flex and frozen combined
+            return model.u_flex[t,p,rng,typ] >= model.flex_sales_order[t,1,p,rng,typ,0]
+        model.SC3_Constraint4 = Constraint(model.T, model.P, model.RNG, model.P_type, rule = produce_flex_for_p1) # Total sales > Priority fulfillment for flex typ
+
         def order_commitment(model,o):
             return model.order_qty_supplied[o] >= model.order_sla[o]
-        model.SC3_Constraint4 = Constraint(model.O, rule = order_commitment)      # For each order >> Quantity supplied > committed Service Level
+        model.SC3_Constraint5 = Constraint(model.O, rule = order_commitment)      # For each order >> Quantity supplied > committed Service Level
+
+        def flex_order_commitment(model,fo):
+            return model.flex_order_qty_supplied[fo] >= model.flex_order_sla[fo]
+        model.SC3_Constraint6 = Constraint(model.flex_O, rule = flex_order_commitment)
 
         return -1*model.profit_projected
         # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
