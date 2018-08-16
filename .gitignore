@@ -5,3 +5,6 @@ src/start_config.ini
 PP_model
 .idea
 src/logs/
+input_files/
+logs/
+
