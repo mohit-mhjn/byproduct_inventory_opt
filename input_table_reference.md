@@ -2,6 +2,8 @@
 Note :
 delimiter used in input files = "."
 
+//--------------------------------------------------------------------------------------------------------------------------
+
 1. Bird Type:
     A bird type defines the size of the bird available after the Harvest and used for processing meat.
 
@@ -13,6 +15,8 @@ delimiter used in input files = "."
     max_weight: Against the corresponding index max weight of the bird considered
     z_value: % distribution of a perticular bird size in the population >> Not being used
 
+// --------------------------------------------------------------------------------------------------------------------------
+
 2. Birds Available
     The data Inventory of the birds avaialable to the processing unit (supply)
 
@@ -21,6 +25,8 @@ delimiter used in input files = "."
     date: Against given date
     bird_type: Bird type index (that redirects to size of bird)
     available: Inventory of the birds (in total number/count of birds)
+
+// --------------------------------------------------------------------------------------------------------------------------
 
 3. Customer
     Data Related to a customer (Customer Master)
@@ -31,6 +37,8 @@ delimiter used in input files = "."
     description: Description of the customer against the corresponding number
     priority: Priority of the customer(1/2) { 1: Important | 2: Un-important }
     serv_agrmnt: (0-1) Service level agreement with corresponding customer  
+
+// --------------------------------------------------------------------------------------------------------------------------
 
 4. Cutting Pattern
     Master for bird processing. A procedure by which the bird is cut into parts/product groups
@@ -46,6 +54,8 @@ delimiter used in input files = "."
     capacity: Kilograms per hour processed by the cp >> Not being used
     ops_cost*: cost of cutting pattern processing (unit not yet defined: per hour or per application of cp or per weight)
 
+// --------------------------------------------------------------------------------------------------------------------------
+
 5. Inventory
     Data for inventory avaialble on hand (opening) at T for planning from T untill the planning horizon length
     The inventory table extracted from the ERP is expected to be in the given format
@@ -58,6 +68,8 @@ delimiter used in input files = "."
     inv_age: measured in days, How old is the inventory
     q_on_hand: measured in KG's, This is the Quantity on Hand
 
+// --------------------------------------------------------------------------------------------------------------------------
+
 6. post_processing
     Data for various stages in post-processing of bird to create SKUs
 
@@ -68,6 +80,8 @@ delimiter used in input files = "."
     description: Null
     capacity: Caoacity of the equipment to process meat in Kilogram per Hour
     ops_cost*: Cost of processing on this machine (unit yet to be defined: per weight or per time)
+
+// --------------------------------------------------------------------------------------------------------------------------
 
 7. Product Group:
     Definition of product_group. product_group is a part of the bird that obtained by applying cutting pattern one or several sections
@@ -81,6 +95,7 @@ delimiter used in input files = "."
     section_id: The set of sections from which the particular product group is extracted
               (Note that: Product group can be extracted from a uniue set
                eg: A product_group that is extracted from section 1 cannot be yielded by section 2)
+// --------------------------------------------------------------------------------------------------------------------------
 
 8. Sales Order:
     The orders placed within the planning horizon, available at the customer sku level
@@ -98,6 +113,8 @@ delimiter used in input files = "."
 
     (Note: It is not necessary to place order in both the UOM's either of the one will suffice the requirement, Conversion factor(avg) is available using the yield data)
 
+// --------------------------------------------------------------------------------------------------------------------------
+
 9. Section:
     The distinct sections of bird for cutting pattern, yield and product group definition
     The sections are exclusive of each other (Do not share any part of the bird)
@@ -106,6 +123,8 @@ delimiter used in input files = "."
 
     section_id: unique identifier for section (lowest value = 1)
     description: How does user/customer will identify section 
+
+// --------------------------------------------------------------------------------------------------------------------------
 
 10. SKU Master:
     Definition of a meat SKU, It is mapped to various indexes to identify its production process
@@ -125,12 +144,16 @@ delimiter used in input files = "."
     shelf_life: Shelf Life against the corresponding SKU Inventory
                   Only defined for Marination = 0 (Assumption: Inventory for Marinated not managed as an Imbalance Inventory)
 
+// --------------------------------------------------------------------------------------------------------------------------
+
 11. update_status.json:
 
     Structure: {"filename": latest updated on}
 
     The file checks the latest updated timestamp of the cached files indicated by the key in the same
     Note: Used for chache update history
+
+// --------------------------------------------------------------------------------------------------------------------------
 
 12. Yield:
     The % yield of a particular part of the bird of a defined size by a defined cutting pattern
@@ -147,6 +170,7 @@ delimiter used in input files = "."
     Note: The yield data is used to make a conversion factor as mentioned in the SKU master point.
           The avg signifies that a sku entity can be produced using multiple cutting patterns
           but the difference in the yield of each is not significant, Hence avg of all is taken.
+// --------------------------------------------------------------------------------------------------------------------------
 
 13. flex_range
     The set of size ranges used for flexible size type SKU.
@@ -157,6 +181,7 @@ delimiter used in input files = "."
     decription: Description of a size range defined by the customer
     bird_type_id: types of bird included in the type range (delimited by ".")
     
+// --------------------------------------------------------------------------------------------------------------------------
 
 14. product_type
     The file has description about product type and its index value
@@ -166,6 +191,8 @@ delimiter used in input files = "."
     product_type:  Unique integer identifier given to type of product (1 = Fresh/Chilled and 2 = Frozen)
     decription : String value description for product type like Fresh/Chilled etc.
 
+// --------------------------------------------------------------------------------------------------------------------------
+
 15. marination_type
     This file describe various type of marination in the system
 
@@ -173,3 +200,5 @@ delimiter used in input files = "."
 
     marination: Unique integer identifier given to type of marination 
     description: String value description for marination type
+
+// --------------------------------------------------------------------------------------------------------------------------
