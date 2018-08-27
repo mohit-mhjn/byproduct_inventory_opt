@@ -40,31 +40,57 @@ import pandas
 import json
 import pickle
 import datetime
+import configparser
+config = configparser.ConfigParser()
+config.read('../start_config.ini')
 
 def update_coef():
 
     capacity_dct = {'cutting_pattern':None,'freezing':None, 'marination':None}
-    cost_dct = {'selling_price':None, 'cutting_cost':None, 'freezing_cost':None, 'holding_cost':None, 'marination_cost':None}
+    cost_dct = {'selling_price':None, 'ops_cost':None, 'freezing_cost':None, 'holding_cost':None, 'marination_cost':None}
 
-    # Selling Price
-    i_master = pandas.read_csv("input_files/sku_master.csv")
-    i_master.drop(labels = ['sku_index','active'], axis = 1,inplace=True)
-    cost_dct['selling_price'] = i_master.set_index(['prod_group_index','bird_type_index','product_type','marination']).to_dict(orient = 'dict')['selling_price']
-    # print (sp_dct)  #Selling Price Dictionary
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from inventory"
+        db_cursor.execute(query_1)
+        i_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['pgroup_id','bird_type_id','product_type'
+            ,'inv_age','q_on_hand'])
+
+        query_2 = "select * from cutting_pattern"
+        db_cursor.execute(query_2)
+        cp_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['cp_id', 'cp_line', 'section_id', 'description',
+                                                                   'capacity', 'ops_cost'])
+
+        query_3 = "select * from post_processing"
+        db_cursor.execute(query_3)
+        process_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['machine_id','machine_type','capacity','ops_cost'])
+
+    else:
+
+        # Selling Price
+        i_master = pandas.read_csv("../input_files/sku_master.csv")
+        cp_master = pandas.read_csv("../input_files/cutting_pattern.csv")
+        process_master = pandas.read_csv("../input_files/post_processing.csv")
+
+    i_master.drop(labels = ['sku_id','active'], axis=1,inplace=True)
+    cost_dct['selling_price'] = i_master.set_index(['pgroup_id' ,'bird_type_id', 'product_type', 'marination']).to_dict(orient = 'dict')['selling_price']
 
     # Operational Cost
-    cp_master = pandas.read_csv("input_files/cutting_pattern.csv")
-    cp_master = cp_master.filter(items = ['cutting_pattern','capacity_kgph','operational_cost'])
-    cp_master.drop_duplicates(inplace = True)
-    cost_dct['cutting_cost'] = cp_master.set_index('cutting_pattern').to_dict(orient='dict')['operational_cost']
-    capacity_dct['cutting_pattern'] = cp_master.set_index('cutting_pattern').to_dict(orient = 'dict')['capacity_kgph']
+    cp_master = cp_master.filter(items=['cp_id','capacity','ops_cost'])
+    cp_master.drop_duplicates(inplace=True)
+    cost_dct['ops_cost'] = cp_master.set_index('cp_id').to_dict(orient='dict')['ops_cost']
+    capacity_dct['cp_id'] = cp_master.set_index('cp_id').to_dict(orient='dict')['capacity']
 
-    # Feezing Cost + Capacity
+    # Freezing Cost + Capacity
     # Marination Cost + Capacity
-    process_master = pandas.read_csv("input_files/processing.csv")
-    process_master = process_master.groupby(["machine_type"]).agg({'machine_id':'size','capacity_kgph':'sum','operational_cost':'mean'})
-    process_dct1 = process_master.to_dict(orient = 'dict')["capacity_kgph"]
-    process_dct2 = process_master.to_dict(orient = 'dict')["operational_cost"]
+    process_master = process_master.groupby(["machine_type"]).agg({'machine_id':'size','capacity':'sum','ops_cost':'mean'})
+    process_dct1 = process_master.to_dict(orient = 'dict')["capacity"]
+    process_dct2 = process_master.to_dict(orient = 'dict')["ops_cost"]
 
     cost_dct['freezing_cost'] = process_dct1["Freezer"]
     cost_dct['marination_cost'] = process_dct1["Marinator"]
@@ -74,23 +100,23 @@ def update_coef():
     # Inventory Holding Cost
     i_master.drop(labels = ['marination'],axis=1,inplace = True)
     i_master.dropna(inplace=True)
-    cost_dct['holding_cost'] = i_master.set_index(['prod_group_index','bird_type_index','product_type']).to_dict(orient = 'dict')['holding_cost']
+    cost_dct['holding_cost'] = i_master.set_index(['pgroup_id','bird_type_id','product_type']).to_dict(orient = 'dict')['holding_cost']
     # print (hc_dct) #Holding Cost Dictionary
 
     #Cacheing the objects
-    with open("input_files/cost_coef","wb") as fp:
+    with open("../cache/cost_coef","wb") as fp:
         pickle.dump(cost_dct,fp)
 
-    with open("input_files/capacity_coef","wb") as fp:
+    with open("../cache/capacity_coef","wb") as fp:
         pickle.dump(capacity_dct,fp)
 
     # Recording Event in the status file
-    with open("input_files/update_status.json","r") as jsonfile:
+    with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
         us['cost_coef'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
         us['capacity_coef'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
 
-    with open("input_files/update_status.json","w") as jsonfile:
+    with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
 
     print("SUCCESS : cost_coef updated!")
@@ -99,9 +125,9 @@ def update_coef():
 
 def read_coef():
     # Loading the cached files
-    with open("input_files/cost_coef","rb") as fp:
+    with open("../cache/cost_coef","rb") as fp:
         cost_dct = pickle.load(fp)
-    with open("input_files/capacity_coef","rb") as fp:
+    with open("../cache/capacity_coef","rb") as fp:
         capacity_dct = pickle.load(fp)
     return {'cost':cost_dct,'capacity':capacity_dct}
 
@@ -110,4 +136,4 @@ if __name__=="__main__":
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
     update_coef()
-    print (read_coef()['cost']['selling_price'][(1,1,'Frozen',1)])
+    print (read_coef()['cost']['selling_price'][(1,1,1,1)])

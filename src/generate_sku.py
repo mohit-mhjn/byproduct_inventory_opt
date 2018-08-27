@@ -7,17 +7,17 @@ import datetime
 directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
 
-with open("input_files/bird_type.csv") as infile1:
+with open("../input_files/bird_type.csv") as infile1:
     k11 = list(csv.reader(infile1))
     k11 = list(map(lambda x:x[0][0],list(zip(k for k in k11))[1:]))
 
-with open("input_files/flex_range.csv") as infile2:
+with open("../input_files/weight_range.csv") as infile2:
     k12 = list(csv.reader(infile2))
     k12 = list(map(lambda x:x[0][0],list(zip(k for k in k12))[1:]))
 
 k1 = k11 + k12
 
-with open("input_files/product_group.csv") as infile3:
+with open("../input_files/product_group.csv") as infile3:
     k2 = list(csv.reader(infile3))
     k2 = list(map(lambda x:x[0], k2[1:]))
 

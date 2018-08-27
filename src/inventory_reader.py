@@ -17,17 +17,31 @@ import pandas
 import datetime
 import json
 import warnings
+import configparser
+config = configparser.ConfigParser()
+config.read('../start_config.ini')
 
 def get_birds(indexes,horizon):
     global us
     # Long Term Input from Farm Data/Harvest Data will be connected here >>
     # More Clarification required for bird Inventroy
-    tbl = pandas.read_csv("input_files/birds_available.csv")
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from birds_available"
+        db_cursor.execute(query_1)
+        tbl = pandas.DataFrame(list(db_cursor.fetchall()), columns=['date','bird_type_id','available'])
+    else:
+        tbl = pandas.read_csv("../input_files/birds_available.csv")
 
     if tbl.empty:
         raise ImportError("No inventory found; error code: 101A")
 
-    with open('input_files/update_status.json') as jsonfile:
+    with open('../update_status.json') as jsonfile:
         us = dict(json.load(jsonfile)) # us == update status
         dt = datetime.datetime.strptime(us['bird_avail'],"%Y-%m-%d %H:%M:%S").date()
 
@@ -44,7 +58,7 @@ def get_birds(indexes,horizon):
         raise ImportError("No inventory found; error code: 101B")
 
     tbl.reset_index(inplace=True,drop=True)
-    tbl_dct = tbl.set_index(['date','bird_type']).to_dict(orient='dict')['inventory']
+    tbl_dct = tbl.set_index(['date','bird_type_id']).to_dict(orient='dict')['available']
     return tbl_dct
 
 def get_parts(indexes,horizon):
@@ -52,7 +66,7 @@ def get_parts(indexes,horizon):
     horizon.sort()
 
     # Checking Inventory Update Status (as of which date the inventory data is available)
-    with open('input_files/update_status.json') as jsonfile:
+    with open('../update_status.json') as jsonfile:
         us = dict(json.load(jsonfile))
         dt = datetime.datetime.strptime(us['part_inventory'],"%Y-%m-%d %H:%M:%S").date()
 
@@ -61,31 +75,31 @@ def get_parts(indexes,horizon):
         return None
 
     # Preprocess Inventroy data table from ERP in this function
-    tbl = pandas.read_csv("input_files/inventory.csv")
+    tbl = pandas.read_csv("../input_files/inventory.csv")
 
     # if tbl.empty:
     #     raise ImportError("No inventory found; error code: 101D")
 
-    i_master = pandas.read_csv("input_files/sku_master.csv") # Getting Inventory Shelf Life
-    i_master = i_master.filter(items =['prod_group_index','bird_type_index','product_type','shelf_life'])
+    i_master = pandas.read_csv("../input_files/sku_master.csv") # Getting Inventory Shelf Life
+    i_master = i_master.filter(items =['pgroup_id','bird_type_id','product_type','shelf_life'])
     i_master.dropna(inplace=True)
-    tbl = tbl.merge(i_master, on = ['prod_group_index','bird_type_index','product_type'])
+    tbl = tbl.merge(i_master, on = ['pgroup_id','bird_type_id','product_type'])
     tbl = tbl[(tbl.inv_age <= tbl.shelf_life) & (tbl.inv_age > 0)]   # Age > 0 (Invalid Inventory Age for opening inv)
 
     frozen_dct = {}
     fresh_dct = {}
 
     if not tbl.empty:
-        fresh_dct = tbl[(tbl.product_type == 'Fresh')].set_index(['prod_group_index','bird_type_index','inv_age']).to_dict(orient='dict')['inventory']
+        fresh_dct = tbl[(tbl.product_type == 1)].set_index(['pgroup_id','bird_type_id','inv_age']).to_dict(orient='dict')['q_on_hand']
         if fresh_dct == {}:
             warnings.warn("No inventory for Fresh products")
 
-        frozen = tbl[(tbl.product_type == 'Frozen')]
+        frozen = tbl[(tbl.product_type == 2)]
 
         if not frozen.empty:
             frozen = frozen.drop(labels = ['inv_age','shelf_life','product_type'], axis=1)
-            frozen = frozen.groupby(by = ['prod_group_index','bird_type_index']).sum()
-            frozen_dct = frozen.to_dict(orient = 'dict')['inventory']
+            frozen = frozen.groupby(by = ['pgroup_id','bird_type_id']).sum()
+            frozen_dct = frozen.to_dict(orient = 'dict')['q_on_hand']
         else:
             warnings.warn("No Inventory for Frozen products")
     else:

@@ -24,12 +24,12 @@ def update_flex_typ():
         return inverse
 
     from index_reader import read_masters
-    typ_ranges = read_masters()["typ_ranges"]
+    typ_ranges = read_masters()["weight_range"]
     ranges = pandas.DataFrame(typ_ranges).T
     ranges.reset_index(inplace = True, drop = False)
-    ranges = ranges.rename(columns = {'index':'rng_indx'})
+    ranges = ranges.rename(columns = {'index':'range_id'})
 
-    flex_range1 = ranges.set_index(["rng_indx"]).to_dict(orient = "dict")["bird_typ"]
+    flex_range1 = ranges.set_index(["range_id"]).to_dict(orient = "dict")["bird_type_id"]
     flex_range2 = invert_dict(flex_range1)
     flex_set = [(v,k) for k in flex_range2.keys() for v in flex_range2[k]]
 
@@ -38,15 +38,15 @@ def update_flex_typ():
                 "flex_rng_comb":flex_set}
 
     #Cacheing the objects
-    with open("input_files/flex_set","wb") as fp:
+    with open("../cache/weight_set","wb") as fp:
         pickle.dump(rng_dct,fp)
 
     # Recording Event in the status file
-    with open("input_files/update_status.json","r") as jsonfile:
+    with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
         us['flex_set'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
 
-    with open("input_files/update_status.json","w") as jsonfile:
+    with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
 
     print("SUCCESS : flexible bird type combinations updated!")
@@ -56,7 +56,7 @@ def update_flex_typ():
 
 def read_flex_typ():
     # Read the cached file
-    with open("input_files/flex_set","rb") as fp:
+    with open("../cache/weight_set","rb") as fp:
         rng_dct = pickle.load(fp)
     return rng_dct
 
@@ -65,4 +65,3 @@ if __name__=="__main__":
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
     update_flex_typ()
-    print (read_flex_typ())

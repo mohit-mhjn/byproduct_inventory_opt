@@ -42,7 +42,7 @@ import logging
 logger_2 = logging.getLogger(__name__)
 logger_2.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
-file_handler = logging.FileHandler('./logs/main_program.log')
+file_handler = logging.FileHandler('../logs/main_program.log')
 file_handler.setFormatter(formatter)
 
 stream_handler = logging.StreamHandler()
@@ -116,18 +116,18 @@ model.P_type = Set(initialize = indexes['product_typ'])          # Type of Produ
 model.M = Set(initialize = indexes['marination'])                # Marination Indicator
 model.C_priority = Set(initialize = indexes['c_priority'])       # Customer Priority Indicator
 model.O = Set(initialize = order_breakup.keys())                 # Order Id's for strict bird type products
-model.RNG = Set(initialize = indexes['typ_ranges'].keys())      # Distinct range sets of flexible size range
+model.RNG = Set(initialize = indexes['weight_range'].keys())      # Distinct range sets of flexible size range
 model.flex_O = Set(initialize = flex_order_breakup.keys())      # Order Id's for flexible bird type products
 
 ## Generating combinations ###############################################
 def combination_gen1(model,j):
     global indexes
-    return indexes['cutting_pattern'][j]['section']
+    return indexes['cutting_pattern'][j]['section_id']
 model.Jk = Set(model.J, initialize = combination_gen1)       # Cutting Pattern >> set(Sections)
 
 def combination_gen2(model,k):
     global indexes
-    return indexes['section'][k]['cutting_pattern']
+    return indexes['section'][k]['cp_id']
 model.Kj = Set(model.K, initialize = combination_gen2)       # Section vs set(Cutting Patterns)  (Inverse of previous)
 
 def combination_gen3(model):
@@ -293,7 +293,7 @@ model.process_capacity = Param(['freezing','marination'],initialize= capacity_ge
 
 def capacity_gen2(model,j):
     global capacity_data
-    return capacity_data['cutting_pattern'][j]
+    return capacity_data['cp_id'][j]
 model.cutting_capacity = Param(model.J, initialize = capacity_gen2)       # Cutting Capacity at cutting pattern J (birds/sections per hour)
 
 # def cost_gen1(model,process):
@@ -308,7 +308,7 @@ model.unit_marination_cost = Param(initialize= cost_data['marination_cost'])   #
 
 def cost_gen3(model,j):
     global cost_data
-    return cost_data['cutting_cost'][j]
+    return cost_data['ops_cost'][j]
 model.unit_cutting_cost = Param(model.J,initialize = cost_gen3)    # Operations Cost Cost of Cutting >> Related with Cutting Pattern
 
 def cost_gen4(model,p,r,t):

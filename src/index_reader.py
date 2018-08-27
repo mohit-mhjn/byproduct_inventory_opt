@@ -50,49 +50,85 @@ import pandas
 import pickle
 import json
 import datetime
-
+import configparser
+config = configparser.ConfigParser()
+config.read('../start_config.ini')
 def update_masters():
+
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from bird_type"
+        db_cursor.execute(query_1)
+        typ = pandas.DataFrame(list(db_cursor.fetchall()),columns=['bird_type_id','description','min_weight'
+            ,'max_weight','z_value'])
+
+        # Index of Bird Types
+        query_2 = "select * from product_group"
+        db_cursor.execute(query_2)
+        pg = pandas.DataFrame(list(db_cursor.fetchall()), columns=['pgroup_id','description','n_parts','section_id'])
+
+        query_3 = "select * from section"
+        db_cursor.execute(query_3)
+        sec = pandas.DataFrame(list(db_cursor.fetchall()), columns=['section_id','description'])
+
+        query_4 = "select * from cutting_pattern"
+        db_cursor.execute(query_4)
+        cp = pandas.DataFrame(list(db_cursor.fetchall()), columns=['cp_id','cp_line','section_id','description',
+                                                                    'capacity','ops_cost'])
+
+        query_5 = "select * from weight_range"
+        db_cursor.execute(query_5)
+        ranges = pandas.DataFrame(list(db_cursor.fetchall()), columns=['range_id','description','bird_type_id'])
+    else:
+        # Index of Bird Types
+        typ = pandas.read_csv("../input_files/bird_type.csv")
+        pg = pandas.read_csv("../input_files/product_group.csv")
+        sec = pandas.read_csv("../input_files/section.csv")
+        cp = pandas.read_csv("../input_files/cutting_pattern.csv")
+        ranges = pandas.read_csv("../input_files/weight_range.csv")
+
     # Index of Bird Types
-    typ = pandas.read_csv("input_files/bird_type.csv")
-    typ_dct = typ.set_index("bird_type_index").to_dict(orient = 'index')
-    # print (typ_dct)
+
+    typ_dct = typ.set_index("bird_type_id").to_dict(orient = 'index')
 
     # Index of Product Groups
-    pg = pandas.read_csv("input_files/product_group.csv")
-    pg["section"] = pg["section"].apply(lambda x:[int(i) for i in x.split(".")])
-    pg_dct = pg.set_index("prod_group_index").to_dict(orient = 'index')
-    # print (pg_dct)
+    pg["section_id"] = pg["section_id"].apply(lambda x:[int(i) for i in x.split(".")])
+    pg_dct = pg.set_index("pgroup_id").to_dict(orient = 'index')
 
     # Index of sections
-    sec = pandas.read_csv("input_files/section.csv")
-    sec_dct = sec.set_index("section_index").to_dict(orient = 'index')
+
+    sec_dct = sec.set_index("section_id").to_dict(orient = 'index')
 
     # Index of cutting patterns
-    cp = pandas.read_csv("input_files/cutting_pattern.csv")
-    cp['rate'] = cp['rate'].apply(lambda x: round(x,5))
-    cp['capacity_kgph'] = cp['capacity_kgph'].apply(lambda x: round(x,5))
-    cp_dct = cp.set_index("cutting_pattern").to_dict(orient = 'index')
+    # cp['rate'] = cp['rate'].apply(lambda x: round(x,5))
+    cp['capacity'] = cp['capacity'].apply(lambda x: round(x,5))
+    cp_dct = cp.set_index("cp_id").to_dict(orient = 'index')
 
     # Mapping Cutting pattern vs Sections
     for cut in cp_dct.keys():
-        df_tmp = cp[(cp.cutting_pattern == cut)]
-        cp_dct[cut]['section'] = list(set(df_tmp['section']))
+        df_tmp = cp[(cp.cp_id == cut)]
+        cp_dct[cut]['section_id'] = list(set(df_tmp['section_id']))
 
     # Mapping Section vs cutting_pattern >> Inverse of previous
     for s in sec_dct.keys():
-        df_tmp = cp[(cp.section == s)]
-        sec_dct[s]['cutting_pattern'] = list(set(df_tmp['cutting_pattern']))
+        df_tmp = cp[(cp.section_id == s)]
+        sec_dct[s]['cp_id'] = list(set(df_tmp['cp_id']))
 
     sec_cut_p_not_available = []  ## >> Need to remove these sections >> Log the warning event and record the list
     for idx in list(sec_dct.keys()):
-        if sec_dct[idx]['cutting_pattern'] == []:
+        if sec_dct[idx]['cp_id'] == []:
             sec_cut_p_not_available.append(idx)
             del sec_dct[idx]                           # Removing Section
     # print (sec_cut_p_not_available)
 
     for s in sec_dct.keys():
-        df_tmp = pg[pg.section.map(set([s]).issubset)]
-        sec_dct[s]['product_group'] = list(set(df_tmp['prod_group_index']))
+        df_tmp = pg[pg.section_id.map(set([s]).issubset)]
+        sec_dct[s]['pgroup_id'] = list(set(df_tmp['pgroup_id']))
 
     # print (sec_dct)
     # print (cp_dct)
@@ -101,9 +137,8 @@ def update_masters():
     c_priority = [1,2]
 
     ## Distinct Weight range set for flexible bird type products
-    ranges = pandas.read_csv("input_files/flex_range.csv")
-    ranges['bird_typ'] = ranges["bird_typ"].apply(lambda x: [int(y) for y in x.split(".")])
-    range_dct = ranges.set_index(["rng_indx"]).to_dict(orient = "index")
+    ranges['bird_type_id'] = ranges["bird_type_id"].apply(lambda x: [int(y) for y in x.split(".")])
+    range_dct = ranges.set_index(["range_id"]).to_dict(orient = "index")
 
     # Collect the required data in a python object
     indexes = {'bird_type':typ_dct,
@@ -113,18 +148,18 @@ def update_masters():
                'marination': marination,
                'c_priority': c_priority,
                'product_typ': product_typ,
-               'typ_ranges':range_dct}
+               'weight_range':range_dct}
 
     # Dump object in a cache file
-    with open("input_files/index_file","wb") as fp:
+    with open("../cache/index_file","wb") as fp:
         pickle.dump(indexes,fp)
 
     # Recording Event in the status file
-    with open("input_files/update_status.json","r") as jsonfile:
+    with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
         us['index_file'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
 
-    with open("input_files/update_status.json","w") as jsonfile:
+    with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
 
     print ("SUCESS : index file updated!")
@@ -133,7 +168,7 @@ def update_masters():
 
 def read_masters():
     # Read cache file recreate the object
-    with open('input_files/index_file',"rb") as fp:
+    with open('../cache/index_file',"rb") as fp:
         k = pickle.load(fp)
     return k
 

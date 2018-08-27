@@ -36,19 +36,36 @@ import pandas
 import json
 import pickle
 import datetime
+import configparser
+config = configparser.ConfigParser()
+config.read('../start_config.ini')
 
 def update_inv_life():
 
-    # Inventory Shelf Life from SKU Master
-    i_master = pandas.read_csv("input_files/sku_master.csv")
-    i_master = i_master[(i_master.product_type == 'Fresh') & (i_master.bird_type_index < 99)]
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from inventory"
+        db_cursor.execute(query_1)
+        i_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['pgroup_id','bird_type_id','product_type'
+            ,'inv_age','q_on_hand'])
+    else:
+
+        # Inventory Shelf Life from SKU Master
+        i_master = pandas.read_csv("../input_files/sku_master.csv")
+
+    i_master = i_master[(i_master.product_type == 1) & (i_master.bird_type_id < 99)]
 
     ## 99 because >> maximum 99 categories of bird types and fresh
     ## Fresh >> Inventory Ageing for only Fresh products is concerned
 
     i_master.drop(labels = ['marination','product_type'],axis=1,inplace = True)
     i_master.dropna(inplace=True)
-    shelf_life = i_master.set_index(['prod_group_index','bird_type_index']).to_dict(orient = 'dict')['shelf_life']
+    shelf_life = i_master.set_index(['pgroup_id','bird_type_id']).to_dict(orient = 'dict')['shelf_life']
     my_set = set()
     for i,y in shelf_life.items():
         for k in range(0,int(y)+1):
@@ -56,15 +73,15 @@ def update_inv_life():
 
     life_dct = {'shelf_life_fresh':shelf_life,'age_combinations_fresh':my_set}
     #Cacheing the objects
-    with open("input_files/inv_life","wb") as fp:
+    with open("../cache/inv_life","wb") as fp:
         pickle.dump(life_dct,fp)
 
     # Recording Event in the status file
-    with open("input_files/update_status.json","r") as jsonfile:
+    with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
         us['ageing'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
 
-    with open("input_files/update_status.json","w") as jsonfile:
+    with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
 
     print("SUCCESS : Inventory shelf life data updated!")
@@ -73,7 +90,7 @@ def update_inv_life():
 
 def read_inv_life():
     # Loading the cached files
-    with open("input_files/inv_life","rb") as fp:
+    with open("../cache/inv_life","rb") as fp:
         life_dct = pickle.load(fp)
     return life_dct
 
