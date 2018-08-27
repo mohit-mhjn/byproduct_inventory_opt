@@ -71,6 +71,9 @@ import pandas
 import pickle
 import json
 import datetime
+import configparser
+config = configparser.ConfigParser()
+config.read('../start_config.ini')
 
 def update_combinations():
 
@@ -93,15 +96,27 @@ def update_combinations():
     def yield_generator(y):
         df_tmp = y.copy(deep=True)
         df_tmp['yld'] = y["yield_p"]*y["n_parts"]
-        df_tmp = df_tmp.filter(items=["prod_group_index","cutting_pattern","bird_type_index","yld","yield_p"])  # Catch Errors here >> Resetting Index shouldn't change n_rows
-        df_tmp.set_index(["prod_group_index","cutting_pattern","bird_type_index"], inplace = True)
+        df_tmp = df_tmp.filter(items=["pgroup_id","cp_id","bird_type_id","yld","yield_p"])  # Catch Errors here >> Resetting Index shouldn't change n_rows
+        df_tmp.set_index(["pgroup_id","cp_id","bird_type_id"], inplace = True)
         yd = df_tmp.to_dict(orient = "index")
         return yd
 
-    y = pandas.read_csv('input_files/yield.csv')
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from yield"
+        db_cursor.execute(query_1)
+        y = pandas.DataFrame(list(db_cursor.fetchall()), columns=['cp_id','section_id','pgroup_id','n_parts',
+                                                                  'bird_type_id','yield_p'])
+    else:
+        y = pandas.read_csv('../input_files/yield.csv')
     y["yield_p"] = y["yield_p"].apply(lambda x: round(x,2))
     y = y[y.yield_p > 0]   # Safeguard
-    y["section"] = y["section"].apply(lambda x: [int(i) for i in x.split(".")])
+    y["section_id"] = y["section_id"].apply(lambda x: [int(i) for i in x.split(".")])
 
     from index_reader import read_masters
     indx = read_masters()
@@ -159,14 +174,14 @@ def update_combinations():
                 'pg_cptyp':pg_cptyp_comb}}
 
     # Dump object in a cache file
-    with open("input_files/bom_file","wb") as fp:
+    with open("../cache/bom_file","wb") as fp:
         pickle.dump(bom_data,fp)
 
     # Recording Event in the status file
-    with open("input_files/update_status.json","r") as jsonfile:
+    with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
         us['bom_file'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
-    with open("input_files/update_status.json","w") as jsonfile:
+    with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
     print("SUCCESS : bom file updated!")
 
@@ -174,7 +189,7 @@ def update_combinations():
 
 def read_combinations():
     # Read cache and recreate the object
-    with open("input_files/bom_file","rb") as fp:
+    with open("../cache/bom_file","rb") as fp:
         bom_data = pickle.load(fp)
     return bom_data
 

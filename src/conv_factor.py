@@ -19,39 +19,60 @@ import pandas
 import pickle
 import json
 import datetime
+import configparser
+config = configparser.ConfigParser()
+config.read('../start_config.ini')
 
 def update_conv_factor():
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from yield"
+        db_cursor.execute(query_1)
+        yld = pandas.DataFrame(list(db_cursor.fetchall()), columns=['cp_id','section_id','pgroup_id','n_parts','bird_type_id','yield_p'])
+        query_2 = "select * from bird_type"
+        db_cursor.execute(query_2)
+        type_master = pandas.DataFrame(list(db_cursor.fetchall()),
+                               columns=['bird_type_id','description','min_weight','max_weight','z_value'])
+
+    else:
+        yld = pandas.read_csv("../input_files/yield.csv")
+        type_master = pandas.read_csv("../input_files/bird_type.csv")
+
     # Obtaining avg yield at product group and bird type level
-    yld = pandas.read_csv("input_files/yield.csv")
-    yld = yld.filter(items = ["prod_group_index","bird_type_index","yield_p"])
-    yld = yld.groupby(by = ["prod_group_index","bird_type_index"]).mean()
+    yld = yld.filter(items = ["pgroup_id","bird_type_id","yield_p"])
+    yld = yld.groupby(by = ["pgroup_id","bird_type_id"]).mean()
     yld.reset_index(inplace = True, drop= False)
 
     # Obtain bird type
-    type_master = pandas.read_csv("input_files/bird_type.csv")
-    type_master = type_master.filter(items = ["bird_type_index","abs_weight"])
+    type_master = type_master.filter(items = ["bird_type_id","max_weight"])
 
     # Merge Yield and Bird type
-    yld = yld.merge(type_master,on = "bird_type_index")
-    yld['conv_factor'] = round(yld["yield_p"]*yld["abs_weight"],4)
-    yld = yld.filter(items = ["prod_group_index","bird_type_index","conv_factor"])
+    print(type_master.columns)
+    yld = yld.merge(type_master,on = "bird_type_id")
+    yld['conv_factor'] = round(yld["yield_p"]*yld["max_weight"],4)
+    yld = yld.filter(items = ["pgroup_id","bird_type_id","conv_factor"])
     yld_dct = yld.to_dict(orient="records")
 
-    with open("input_files/conv_factor","wb") as fp:
+    with open("../cache/conv_factor","wb") as fp:
         pickle.dump(yld_dct,fp)
 
     # Recording Event in the status file
-    with open("input_files/update_status.json","r") as jsonfile:
+    with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
         us['conv_factor'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
 
-    with open("input_files/update_status.json","w") as jsonfile:
+    with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
     print ("SUCCESS : Conversion Factor updated!")
     return None
 
 def get_conv_factor():
-    with open("input_files/conv_factor","rb") as fp:
+    with open("../cache/conv_factor","rb") as fp:
         a = pickle.load(fp)
     yld = pandas.DataFrame(a)
     return yld

@@ -8,3 +8,4 @@ src/logs/
 input_files/
 logs/
 output_files/
+start_config.ini
