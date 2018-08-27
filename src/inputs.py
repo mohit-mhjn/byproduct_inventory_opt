@@ -1,4 +1,4 @@
-class model_input(object):
+class static_input(object):
 
     def __init__(self):
 
@@ -57,6 +57,25 @@ def create_object():
     with open("input_files/cache/input_object","wb") as fp:
         pickle.dump(cache_obj,fp)
 
+class dynamic_inputs(object):
+
+    def __init__(self,dt,lenth_of_plan):
+        self.exec_date = dt
+
+        self.horizon = [dt+datetime.timedelta(days = i) for i in range(dt)]
+        self.t_dt_map = [t:str(horizon[t]) for t in range(dt)]
+
+        self.orders_aggregate = None
+        self.order_breakup = None
+        self.order_grouped = None
+
+        self.flex_orders_aggregate = None
+        self.flex_order_grouped = None
+        self.flex_order_breakup = None
+
+
+
+
 if __name__=="__main__":
-    print ("This module is the class definition of input object in the main program!")
+    print ("This module is the class definition of input objects in the main program!")
     create_object()

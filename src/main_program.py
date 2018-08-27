@@ -25,31 +25,35 @@ To Do:
 2. planning horizon include in indexes
 3. Warehouse Capacity
 4  MOQ at Lines/CP
-5  
 """
+
 # Setting Up Environment
 print("Start")
 import os
 directory = os.path.dirname(os.path.abspath(__file__))
 os.chdir(directory)
-import datetime
-from pyomo.environ import *
+
+# Get Config
 import configparser
 config = configparser.ConfigParser()
 config.read('start_config.ini')
+
+## Initializing Logger
+import datetime
+todayDate = datetime.date.today()
+str_todayDate = datetime.datetime.strftime(todayDate, "%y%m%d")
 import logging
-
-logger_2 = logging.getLogger(__name__)
-logger_2.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s:%(name)s:%(levelname)s:%(message)s")
-file_handler = logging.FileHandler('./logs/main_program.log')
+file_handler = logging.FileHandler('../logs/main_program%s.log'%(todayDate))
 file_handler.setFormatter(formatter)
-
 stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
 
-logger_2.addHandler(file_handler)
-logger_2.addHandler(stream_handler)
+## Checking Scenario to Execute
 import sys
 import argparse
 parser = argparse.ArgumentParser()
@@ -104,6 +108,7 @@ flex_order_breakup = orders["flexible"]["breakup"]             # Individual Orde
 flex_order_grouped = orders["flexible"]["grouped_by_product"]  # Orders belonging to a SKU key at time t
 
 ## MILP Model Initialization #############################################
+from pyomo.environ import *
 model = ConcreteModel()
 
 ## Index Definition #####################################################
