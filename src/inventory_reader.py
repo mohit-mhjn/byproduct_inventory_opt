@@ -17,11 +17,9 @@ import pandas
 import datetime
 import json
 import warnings
-import configparser
-config = configparser.ConfigParser()
-config.read('../start_config.ini')
 
-def get_birds(indexes,horizon):
+def get_birds(master,var_data,config):
+    horizon = var_data.horizon
     global us
     # Long Term Input from Farm Data/Harvest Data will be connected here >>
     # More Clarification required for bird Inventroy
@@ -59,10 +57,14 @@ def get_birds(indexes,horizon):
 
     tbl.reset_index(inplace=True,drop=True)
     tbl_dct = tbl.set_index(['date','bird_type_id']).to_dict(orient='dict')['available']
-    return tbl_dct
 
-def get_parts(indexes,horizon):
+    var_data.bird_availability = tbl_dct
+    # return tbl_dct
+    return var_data
+
+def get_parts(master,var_data,config):
     global us
+    horizon = var_data.horizon
     horizon.sort()
 
     # Checking Inventory Update Status (as of which date the inventory data is available)
@@ -75,12 +77,28 @@ def get_parts(indexes,horizon):
         return None
 
     # Preprocess Inventroy data table from ERP in this function
-    tbl = pandas.read_csv("../input_files/inventory.csv")
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from inventory"
+        db_cursor.execute(query_1)
+        tbl = pandas.DataFrame(list(db_cursor.fetchall()), columns=['date','bird_type_id','available'])
+
+        query_2 = "select * from sku_master"
+        db_cursor.execute(query_2)
+        i_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['sku_id','pgroup_id','bird_type_id','product_type','marination','active','selling_price','holding_cost','shelf_life'])
+    else:
+        tbl = pandas.read_csv("../input_files/inventory.csv")
+        i_master = pandas.read_csv("../input_files/sku_master.csv") # Getting Inventory Shelf Life
 
     # if tbl.empty:
     #     raise ImportError("No inventory found; error code: 101D")
 
-    i_master = pandas.read_csv("../input_files/sku_master.csv") # Getting Inventory Shelf Life
+
     i_master = i_master.filter(items =['pgroup_id','bird_type_id','product_type','shelf_life'])
     i_master.dropna(inplace=True)
     tbl = tbl.merge(i_master, on = ['pgroup_id','bird_type_id','product_type'])
@@ -105,19 +123,29 @@ def get_parts(indexes,horizon):
     else:
         warnings.warn("All inventory is finished/expired")
 
-    return {'Fresh':fresh_dct,'Frozen':frozen_dct}
+    var_data.part_inv_fresh = fresh_dct
+    var_data.part_inv_frozen = frozen_dct
+    # return {'Fresh':fresh_dct,'Frozen':frozen_dct}
+    return var_data
 
 if __name__=='__main__':
+    import pickle
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    from index_reader import read_masters
-    indexes = read_masters()
-    horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)]  # Attach with Indexes
+
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('../start_config.ini')
+    from inputs import *
+    with open("../cache/master_data","rb") as fp:
+        master = pickle.load(fp)
+    var_data = decision_input(datetime.date(2018,6,28),3)
+
     print ("Bird Inventory >>>")
     pandas.set_option('display.expand_frame_repr', False)
-    print (pandas.DataFrame(get_birds(indexes,horizon), index=[0]))
+    print (pandas.DataFrame(get_birds(master,var_data,config).bird_availability, index=[0]))
     print ("\nPart Inventory >>>")
-    part_inv = get_parts(indexes,horizon)
-    print (part_inv['Fresh'])
-    print (part_inv['Frozen'])
+    var_data = get_parts(master,var_data,config)
+    print (var_data.part_inv_fresh)
+    print (var_data.part_inv_frozen)

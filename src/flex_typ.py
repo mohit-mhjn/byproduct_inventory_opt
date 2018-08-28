@@ -23,8 +23,12 @@ def update_flex_typ():
                     inverse[item].append(key)
         return inverse
 
-    from index_reader import read_masters
-    typ_ranges = read_masters()["weight_range"]
+    with open("../cache/master_data","rb") as fp:
+        master = pickle.load(fp)
+
+    # from index_reader import read_masters
+    # typ_ranges = read_masters()["weight_range"]
+    typ_ranges = master.weight_range
     ranges = pandas.DataFrame(typ_ranges).T
     ranges.reset_index(inplace = True, drop = False)
     ranges = ranges.rename(columns = {'index':'range_id'})
@@ -33,13 +37,18 @@ def update_flex_typ():
     flex_range2 = invert_dict(flex_range1)
     flex_set = [(v,k) for k in flex_range2.keys() for v in flex_range2[k]]
 
-    rng_dct = { "rng_to_type":flex_range1,
-                "type_to_rng":flex_range2,
-                "flex_rng_comb":flex_set}
+    master.flex_range1 = flex_range1
+    master.flex_range2 = flex_range2
+    master.flex_set = flex_set
+
+    # rng_dct = { "rng_to_type":flex_range1,
+    #             "type_to_rng":flex_range2,
+    #             "flex_rng_comb":flex_set}
 
     #Cacheing the objects
-    with open("../cache/weight_set","wb") as fp:
-        pickle.dump(rng_dct,fp)
+
+    with open("../cache/master_data","wb") as fp:
+        pickle.dump(master,fp)
 
     # Recording Event in the status file
     with open("../update_status.json","r") as jsonfile:
@@ -54,14 +63,18 @@ def update_flex_typ():
     return None
 
 
-def read_flex_typ():
-    # Read the cached file
-    with open("../cache/weight_set","rb") as fp:
-        rng_dct = pickle.load(fp)
-    return rng_dct
+# def read_flex_typ():
+#     # Read the cached file
+#     with open("../cache/weight_set","rb") as fp:
+#         rng_dct = pickle.load(fp)
+#     return rng_dct
 
 if __name__=="__main__":
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('../start_config.ini')
+    from inputs import *
     update_flex_typ()

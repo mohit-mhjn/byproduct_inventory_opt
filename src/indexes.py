@@ -50,9 +50,7 @@ import pandas
 import pickle
 import json
 import datetime
-import configparser
-config = configparser.ConfigParser()
-config.read('../start_config.ini')
+
 def update_masters():
 
     if bool(int(config['input_source']['mySQL'])):
@@ -107,16 +105,18 @@ def update_masters():
     # Index of cutting patterns
     # cp['rate'] = cp['rate'].apply(lambda x: round(x,5))
     cp['capacity'] = cp['capacity'].apply(lambda x: round(x,5))
+    cp["section_id"] = cp["section_id"].apply(lambda x:[int(i) for i in x.split(".")])
     cp_dct = cp.set_index("cp_id").to_dict(orient = 'index')
 
     # Mapping Cutting pattern vs Sections
-    for cut in cp_dct.keys():
-        df_tmp = cp[(cp.cp_id == cut)]
-        cp_dct[cut]['section_id'] = list(set(df_tmp['section_id']))
+
+    # for cut in cp_dct.keys():
+    #     df_tmp = cp[(cp.cp_id == cut)]
+    #     cp_dct[cut]['section_id'] = list(set(df_tmp['section_id']))
 
     # Mapping Section vs cutting_pattern >> Inverse of previous
     for s in sec_dct.keys():
-        df_tmp = cp[(cp.section_id == s)]
+        df_tmp = cp[cp.section_id.map(set([s]).issubset)]
         sec_dct[s]['cp_id'] = list(set(df_tmp['cp_id']))
 
     sec_cut_p_not_available = []  ## >> Need to remove these sections >> Log the warning event and record the list
@@ -132,8 +132,9 @@ def update_masters():
 
     # print (sec_dct)
     # print (cp_dct)
-    product_typ = ['Fresh','Frozen']
-    marination = [1,0]
+
+    product_typ = {1:{"description":"Fresh/Chilled"},2:{"description":"Frozen"}}
+    marination = {1:{"description":"Marination Type-1"},0:{"description":"No Marination"}}
     c_priority = [1,2]
 
     ## Distinct Weight range set for flexible bird type products
@@ -141,23 +142,36 @@ def update_masters():
     range_dct = ranges.set_index(["range_id"]).to_dict(orient = "index")
 
     # Collect the required data in a python object
-    indexes = {'bird_type':typ_dct,
-               'cutting_pattern':cp_dct,
-               'section':sec_dct,
-               'product_group':pg_dct,
-               'marination': marination,
-               'c_priority': c_priority,
-               'product_typ': product_typ,
-               'weight_range':range_dct}
+    with open('../cache/master_data',"rb") as fp:
+        master = pickle.load(fp)
+
+    
+    master.bird_type = typ_dct
+    master.cutting_pattern = cp_dct
+    master.section = sec_dct
+    master.product_group = pg_dct
+    master.marination = marination
+    master.c_priority = c_priority
+    master.product_typ = product_typ
+    master.weight_range = range_dct
+
+    # indexes = {'bird_type':typ_dct,
+    #            'cutting_pattern':cp_dct,
+    #            'section':sec_dct,
+    #            'product_group':pg_dct,
+    #            'marination': marination,
+    #            'c_priority': c_priority,
+    #            'product_typ': product_typ,
+    #            'weight_range':range_dct}
 
     # Dump object in a cache file
-    with open("../cache/index_file","wb") as fp:
-        pickle.dump(indexes,fp)
+    with open("../cache/master_data","wb") as fp:
+        pickle.dump(master,fp)
 
     # Recording Event in the status file
     with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
-        us['index_file'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
+        us['indexes'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
 
     with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
@@ -166,15 +180,13 @@ def update_masters():
 
     return None
 
-def read_masters():
-    # Read cache file recreate the object
-    with open('../cache/index_file',"rb") as fp:
-        k = pickle.load(fp)
-    return k
 
 if __name__=='__main__':
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('../start_config.ini')
+    from inputs import *
     update_masters()
-    # read_masters()

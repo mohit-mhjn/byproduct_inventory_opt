@@ -36,9 +36,6 @@ import pandas
 import json
 import pickle
 import datetime
-import configparser
-config = configparser.ConfigParser()
-config.read('../start_config.ini')
 
 def update_inv_life():
 
@@ -49,12 +46,10 @@ def update_inv_life():
         db_cursor = db.cursor()
 
         # Index of Bird Types
-        query_1 = "select * from inventory"
+        query_1 = "select * from sku_master"
         db_cursor.execute(query_1)
-        i_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['pgroup_id','bird_type_id','product_type'
-            ,'inv_age','q_on_hand'])
+        i_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['sku_id','pgroup_id','bird_type_id','product_type','marination','active','selling_price','holding_cost','shelf_life'])
     else:
-
         # Inventory Shelf Life from SKU Master
         i_master = pandas.read_csv("../input_files/sku_master.csv")
 
@@ -72,9 +67,15 @@ def update_inv_life():
             my_set.add((i[0],i[1],k))
 
     life_dct = {'shelf_life_fresh':shelf_life,'age_combinations_fresh':my_set}
-    #Cacheing the objects
-    with open("../cache/inv_life","wb") as fp:
-        pickle.dump(life_dct,fp)
+
+    #Caching the objects
+    with open("../cache/master_data","rb") as fp:
+        master = pickle.load(fp)
+
+    master.life_dct = life_dct
+
+    with open("../cache/master_data","wb") as fp:
+        pickle.dump(master,fp)
 
     # Recording Event in the status file
     with open("../update_status.json","r") as jsonfile:
@@ -88,15 +89,19 @@ def update_inv_life():
 
     return None
 
-def read_inv_life():
-    # Loading the cached files
-    with open("../cache/inv_life","rb") as fp:
-        life_dct = pickle.load(fp)
-    return life_dct
+# def read_inv_life():
+#     # Loading the cached files
+#     with open("../cache/inv_life","rb") as fp:
+#         life_dct = pickle.load(fp)
+#     return life_dct
 
 if __name__=="__main__":
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('../start_config.ini')
+    from inputs import *
     update_inv_life()
     # print (read_inv_life())

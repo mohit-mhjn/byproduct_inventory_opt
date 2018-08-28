@@ -1,94 +1,95 @@
 from pyomo.environ import *
+import datetime
 
-def create_instance(indexes,bom_data,age_comb_fresh):
+def create_instance(master,var_data,scenario = 1):
 
     model = ConcreteModel()
 
     ## Index Definition #####################################################
-    model.T = Set(initialize= list(range(len(horizon))), ordered = True) # planning horizon* Temporary >> To include initialize in indx
-    model.J = Set(initialize= indexes['cutting_pattern'].keys())   # cutting patterns
-    model.P = Set(initialize= indexes['product_group'].keys())     # products
-    model.K = Set(initialize= indexes['section'].keys())          # no of sections
-    model.R = Set(initialize= indexes['bird_type'].keys())         # type of carcasses
-    model.P_type = Set(initialize = indexes['product_typ'])          # Type of Products
-    model.M = Set(initialize = indexes['marination'])                # Marination Indicator
-    model.C_priority = Set(initialize = indexes['c_priority'])       # Customer Priority Indicator
-    model.O = Set(initialize = order_breakup.keys())                 # Order Id's for strict bird type products
-    model.RNG = Set(initialize = indexes['typ_ranges'].keys())      # Distinct range sets of flexible size range
-    model.flex_O = Set(initialize = flex_order_breakup.keys())      # Order Id's for flexible bird type products
+    model.T = Set(initialize= list(range(len(var_data.horizon))), ordered = True) # planning horizon* Temporary >> To include initialize in indx
+    model.J = Set(initialize= master.cutting_pattern.keys())   # cutting patterns
+    model.P = Set(initialize= master.product_group.keys())     # products
+    model.K = Set(initialize= master.section.keys())          # no of sections
+    model.R = Set(initialize= master.bird_type.keys())         # type of carcasses
+    model.P_type = Set(initialize = master.product_typ.keys())          # Type of Products
+    model.M = Set(initialize = master.marination.keys())                # Marination Indicator
+    model.C_priority = Set(initialize = master.c_priority)       # Customer Priority Indicator
+    model.O = Set(initialize = var_data.order_breakup.keys())                 # Order Id's for strict bird type products
+    model.RNG = Set(initialize = master.weight_range.keys())      # Distinct range sets of flexible size range
+    model.flex_O = Set(initialize = var_data.flex_order_breakup.keys())      # Order Id's for flexible bird type products
 
     ## Generating combinations ###############################################
     def combination_gen1(model,j):
-        global indexes
-        return indexes['cutting_pattern'][j]['section']
+        # global master
+        return master.cutting_pattern[j]['section_id']
     model.Jk = Set(model.J, initialize = combination_gen1)       # Cutting Pattern >> set(Sections)
 
     def combination_gen2(model,k):
-        global indexes
-        return indexes['section'][k]['cutting_pattern']
+        # global master
+        return master.section[k]['cp_id']
     model.Kj = Set(model.K, initialize = combination_gen2)       # Section vs set(Cutting Patterns)  (Inverse of previous)
 
     def combination_gen3(model):
-        global bom_data
-        return bom_data['iter_combs']['sec_cp']
+        # global master
+        return master.sec_cp
     model.indx_kj = Set(dimen = 2, initialize = combination_gen3)    # Combinations of (section,cutting_pattern)
 
     def combination_gen4(model,k,j):
-        global bom_data
-        return bom_data['sec_nwb_pg'][(k,j)]
+        # global master
+        return master.sec_nwb_pg[(k,j)]
     model.KJp1 = Set(model.indx_kj, initialize = combination_gen4)   # Non Whole bird products coming from a (section,cutting_pattern)
 
     def combination_gen5(model,k,j):
-        global bom_data
-        return bom_data['sec_wb_pg'][(k,j)]
+        # global master
+        return master.sec_wb_pg[(k,j)]
     model.KJp2 = Set(model.indx_kj, initialize = combination_gen5)   # Whole bird products coming from a (section,cutting_pattern)
 
     def combination_gen6(model,k):
-        global indexes
-        return indexes['section'][k]['product_group']
+        # global master
+        return master.section[k]['pgroup_id']
     model.Kp = Set(model.K, initialize = combination_gen6)     # Products from coming section
 
     def combination_gen7(model):
-        global bom_data
-        return bom_data['iter_combs']['pgcptyp']
+        # global master
+        return master.pgcptyp
     model.indx_pjr = Set(dimen = 3, initialize = combination_gen7) # Combinations of (product,cutting_pattern,bird_type)
 
     def combination_gen8(model):
-        global bom_data
-        return bom_data['iter_combs']['typ_cp']
+        # global master
+        return master.typ_cp
     model.indx_rj = Set(dimen = 2, initialize = combination_gen8)    # Combinations of (bird_type, cutting_pattern)
 
     def combination_gen9(model):
-        global bom_data
-        return bom_data['iter_combs']['typseccp']
+        # global master
+        return master.typseccp
     model.indx_rkj = Set(dimen = 3, initialize = combination_gen9)   # Combinations of (bird_type,section,cutting_pattern)
 
     def combination_gen10(model,p):
-        global bom_data
-        return bom_data['iter_combs']['pg_cptyp'][p]
+        # global master
+        return master.pg_cptyp[p]
     model.Pjr = Set(model.P,dimen=2,initialize = combination_gen10)    # Combinations of (cutting_pattern, bird_type) that yield product P
 
     def combination_gen11(model,r,j):
-        global bom_data
-        return bom_data['iter_combs']['cptyp_pg'][(j,r)]
+        # global master
+        return master.cptyp_pg[(j,r)]
     model.RJp = Set(model.indx_rj,initialize = combination_gen11)  # Products yielded by a particular (bird_type,cutting_pattern) (Inverse of previous)
 
     def combination_gen12(model):
-        global age_comb_fresh
-        return age_comb_fresh
+        # global master
+        return master.life_dct['age_combinations_fresh']
     model.INV_Fresh = Set(dimen = 3, initialize=combination_gen12)   # For fresh products inventory index with age (product,bird_type,age) where age lies in range [1,shelf_life]
 
     def combination_gen13(model):   # This can be cached >>> To Do
-        global bom_data
-        return bom_data['iter_combs']['typseccpp']
+        # global master
+        return master.typseccpp
     model.indx_rkjp = Set(dimen = 4, initialize = combination_gen13)     # Combination of (bird type,section,cutting_pattern,product)
 
     order_iter_set = set()
     def combination_gen15(model,t,c,p,r,typ,m):       # Time Consuming >> Temporarily Fine
-        global order_grouped
-        dt = str(horizon[t])
-        if (dt,c,p,r,typ,m) in order_grouped.keys():
-            order_set = order_grouped[(dt,c,p,r,typ,m)]
+        # global var_data
+        dt = var_data.t_dt_map[t]
+        if (dt,c,p,r,typ,m) in var_data.order_grouped.keys():
+            order_set = var_data.order_grouped[(dt,c,p,r,typ,m)]
             for o in order_set:
                 order_iter_set.add((t,c,p,r,typ,m,o))
             return order_set
@@ -97,34 +98,32 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     model.order_group = Set(model.T,model.C_priority,model.P, model.R, model.P_type, model.M, initialize = combination_gen15)
 
     def combination_gen16(model):                                        #  Combination of date,c_priority, product, bird_type, fresh/frozen, marination, order_no
-        global order_iter_set
         return list(order_iter_set)
     model.indx_o_filling = Set(dimen = 7, initialize = combination_gen16)
 
     def combination_gen17(model,rng):                                        # Bird Types for several flexible weight ranges
-        global flex_ranges
-        return flex_ranges["rng_to_type"][rng]
+        # global master
+        return master.flex_range1[rng]
     model.wt_set1 = Set(model.RNG, initialize = combination_gen17)
 
     def combination_gen18(model,r):                                        #  Flexible weight ranges for weight R
-        global flex_ranges
-        return flex_ranges["type_to_rng"][r]
+        # global master
+        return master.flex_range2[r]
     model.wt_set2 = Set(model.R, initialize = combination_gen18)
 
     def combination_gen19(model):                                   #  Flexible weight range v/s weight combinations
-        global flex_ranges
-        return flex_ranges["flex_rng_comb"]
+        # global master
+        return master.flex_set
     model.wt_set3 = Set(dimen = 2, initialize = combination_gen19)
 
     #####  +++++++++++++ FLEX Orders Grouped ++++++
 
     flex_order_iter_set = set()
     def combination_gen20(model,t,c,p,r,typ,m):       # Time Consuming >> Temporarily Fine
-        global flex_order_grouped
-        dt = str(horizon[t])
-        if (dt,c,p,r,typ,m) in flex_order_grouped.keys():
-            print (dt)
-            order_set = flex_order_grouped[(dt,c,p,r,typ,m)]
+        # global var_data
+        dt = var_data.t_dt_map[t]
+        if (dt,c,p,r,typ,m) in var_data.flex_order_grouped.keys():
+            order_set = var_data.flex_order_grouped[(dt,c,p,r,typ,m)]
             for o in order_set:
                 flex_order_iter_set.add((t,c,p,r,typ,m,o))
             return order_set
@@ -138,34 +137,32 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     # Solvers might sometime fail because of big M values, If in case reduce the value by a factor of 10 and try. It shall work otherwise repeat this step again
 
     def inv_gen1(model,t,r):
-        global birds_inv
-        global horizon
-        dt = str(horizon[t])
-        return birds_inv[(dt,r)]
+        # global var_data
+        dt = var_data.t_dt_map[t]
+        return var_data.bird_availability[(dt,r)]
     model.H = Param(model.T, model.R, initialize = inv_gen1)         # availability of birds of type r at time t
 
     def inv_gen2(model,p,r,l):  # Opening Inventory
-        global fresh_inv
-        if (p,r,l) in fresh_inv.keys():
-            return fresh_inv[(p,r,l)]
+        # global var_data
+        if (p,r,l) in var_data.part_inv_fresh.keys():
+            return var_data.part_inv_fresh[(p,r,l)]
         else:
             return 0
     model.initial_inv_fresh = Param(model.INV_Fresh, initialize = inv_gen2)     # Initial inventory of fresh products p of bird type r  with age l (in days)
 
     def inv_gen3(model,p,r):
-        global frozen_inv
-        if (p,r) in frozen_inv.keys():
-            return frozen_inv[(p,r)]
+        # global var_data
+        if (p,r) in var_data.part_inv_frozen.keys():
+            return var_data.part_inv_frozen[(p,r)]
         else:
             return 0
     model.initial_inv_frozen = Param(model.P,model.R, initialize = inv_gen3)     # Initial inventory of frozen product p of bird type r
 
     def order_gen1(model,t,cp,p,r,pt,m):
-        global orders_aggregate
-        global horizon
-        dt = str(horizon[t])
-        if (dt,cp,p,r,pt,m) in orders_aggregate.keys():
-            return orders_aggregate[(dt,cp,p,r,pt,m)]
+        # global var_data
+        dt = var_data.t_dt_map[t]
+        if (dt,cp,p,r,pt,m) in var_data.orders_aggregate.keys():
+            return var_data.orders_aggregate[(dt,cp,p,r,pt,m)]
         else:
             return 0
     model.sales_order = Param(model.T,model.C_priority,model.P,model.R,model.P_type,model.M, initialize = order_gen1)   # Sales order (day,customer_priority, product,bird_type, fresh/frozen, marination (1/0))
@@ -175,99 +172,98 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     model.further_proessing = Param(model.T, initialize = order_gen2)   # Demand of fresh products for further processing
 
     def yield_gen(model,p,j,r):
-        global bom_data
-        return bom_data['yield_data'][(p,j,r)]['yld']
+        # global master
+        return master.yield_data[(p,j,r)]['yld']
     model.yd = Param(model.indx_pjr, initialize = yield_gen)    # Yield of product p from bird type r at cutting pattern j
 
     def shelflife_gen(model,p,r): # Only Fresh
-        global shelf_life_fresh
-        return shelf_life_fresh[(p,r)]
+        # global master
+        return master.life_dct['shelf_life_fresh'][(p,r)]
     model.L = Param(model.P,model.R,initialize = shelflife_gen)       # Shelf Life of fresh product p of bird type r
 
     def capacity_gen1(model,process):
-        global capacity_data
-        return capacity_data[process]
+        # global master
+        return master.capacity_dct[process]
     model.process_capacity = Param(['freezing','marination'],initialize= capacity_gen1)   # Hard Coded process steps | Marination and freezing Capacity
 
     def capacity_gen2(model,j):
-        global capacity_data
-        return capacity_data['cutting_pattern'][j]
+        # global master
+        return master.capacity_dct['cutting_pattern'][j]
     model.cutting_capacity = Param(model.J, initialize = capacity_gen2)       # Cutting Capacity at cutting pattern J (birds/sections per hour)
 
     # def cost_gen1(model,process):
     #     global cost
     #     return cost_data[process]
-    model.unit_freezing_cost = Param(initialize= cost_data['freezing_cost'])   # Operations Cost Coef. Freezing Cost
+    model.unit_freezing_cost = Param(initialize= master.cost_dct['freezing_cost'])   # Operations Cost Coef. Freezing Cost
 
     # def cost_gen2(model,process):
     #     global cost
     #     return cost_data[process]
-    model.unit_marination_cost = Param(initialize= cost_data['marination_cost'])   # Operations Cost Coef. Marination Cost
+    model.unit_marination_cost = Param(initialize= master.cost_dct['marination_cost'])   # Operations Cost Coef. Marination Cost
 
     def cost_gen3(model,j):
-        global cost_data
-        return cost_data['cutting_cost'][j]
+        # global master
+        return master.cost_dct['cutting_cost'][j]
     model.unit_cutting_cost = Param(model.J,initialize = cost_gen3)    # Operations Cost Cost of Cutting >> Related with Cutting Pattern
 
     def cost_gen4(model,p,r,t):
-        global cost_data
-        return cost_data['holding_cost'][(p,r,t)]
+        # global master
+        return master.cost_dct['holding_cost'][(p,r,t)]
     model.inventory_holding_cost = Param(model.P,model.R,model.P_type, initialize = cost_gen4) # Cost coef of Inventroy Holding >> Fresh and Frozen product 'P' of bird type 'R'
 
     def cost_gen5(model,p,r,t,m):
-        global cost_data
-        if t == "Frozen" and m == 1: # >> Removed from Consideration frozen marinated sku
+        # global master
+        if t == 2 and m == 1: # >> Removed from Consideration frozen marinated sku
             return 0
         else:
-            return cost_data['selling_price'][(p,r,t,m)]
+            return master.cost_dct['selling_price'][(p,r,t,m)]
     model.selling_price = Param(model.P,model.R,model.P_type,model.M, initialize = cost_gen5)  # Selling Price (profit Cost Coef) selling price of product p bird type R against fresh/frozen and marination 1/0
 
     def sla_fulfillment(model,o):
-        global order_breakup
-        return order_breakup[o]["customer_sla"]*order_breakup[o]["order_qty"]
+        # global var_data
+        return var_data.order_breakup[o]["serv_agrmnt"]*var_data.order_breakup[o]["order_qty"]
     model.order_sla = Param(model.O, initialize = sla_fulfillment)                        # Service Level Agreement against each order line item
 
     def order_selling_price_gen(model,o):
-        global order_breakup
-        return order_breakup[o]["selling_price"]
+        # global var_data
+        return var_data.order_breakup[o]["selling_price"]
     model.order_sp = Param(model.O, initialize = order_selling_price_gen)                # Selling price of order
 
     def order_qty_gen(model,o):
-        global order_breakup
-        return order_breakup[o]["order_qty"]
+        # global var_data
+        return var_data.order_breakup[o]["order_qty"]
     model.order_qty = Param(model.O, initialize = order_qty_gen)                         # Quantity contained in a order
 
     def order_date_gen(model,o):
-        global order_breakup
-        dt = horizon.index(datetime.datetime.strptime(order_breakup[o]["date"],"%Y-%m-%d").date())
+        # global var_data
+        dt = var_data.horizon.index(datetime.datetime.strptime(var_data.order_breakup[o]["order_dt"],"%Y-%m-%d").date())
         return dt
     model.order_date = Param(model.O, initialize = order_date_gen)                        # date of an order
 
     def order_priority_gen(model,o):
-        global order_breakup
-        return order_breakup[o]["priority"]
+        # global var_data
+        return var_data.order_breakup[o]["priority"]
     model.order_priority = Param(model.O, initialize = order_priority_gen)             # C_Priority of an oder
 
     ## Following is for flexible >> Under Testing
 
     def order_gen3(model,t,c,p,rng,typ,m):                                                     # Sales order for Flex type SKU
-        global flex_orders_aggregate
-        global horizon
-        dt = str(horizon[t])
-        if (dt,c,p,rng,typ,m) in flex_orders_aggregate.keys():
-            return flex_orders_aggregate[(dt,c,p,rng,typ,m)]
+        # global var_data
+        dt = var_data.t_dt_map[t]
+        if (dt,c,p,rng,typ,m) in var_data.flex_orders_aggregate.keys():
+            return var_data.flex_orders_aggregate[(dt,c,p,rng,typ,m)]
         else:
             return 0
     model.flex_sales_order = Param(model.T,model.C_priority,model.P,model.RNG,model.P_type,[0],initialize = order_gen3)   # Only m = 0 >> No Marination for flex (not in scope)
 
     def flex_sla_fulfillment(model,o):
-        global flex_order_breakup
-        return flex_order_breakup[o]["customer_sla"]*flex_order_breakup[o]["order_qty"]
+        # global var_data
+        return var_data.flex_order_breakup[o]["serv_agrmnt"]*var_data.flex_order_breakup[o]["order_qty"]
     model.flex_order_sla = Param(model.flex_O, initialize = flex_sla_fulfillment)                        # Service Level Agreement against each order line item
 
     def flex_order_qty_gen(model,o):
-        global flex_order_breakup
-        return flex_order_breakup[o]["order_qty"]
+        # global var_data
+        return var_data.flex_order_breakup[o]["order_qty"]
     model.flex_order_qty = Param(model.flex_O, initialize = flex_order_qty_gen)                         # Quantity contained in a order
 
     ## Variable Objects #######################################
@@ -351,7 +347,7 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     ## Inventroy Balance Equations and Constraints ##########################################
 
     def expression_gen1(model,t,p,r):
-        return  model.u_fresh[t,p,r] + model.x_freezing[t,p,r] + model.x_marination[t,p,r] + sum(model.a_flex[t,p,rng,r,"Fresh"] for rng in model.wt_set2[r])
+        return  model.u_fresh[t,p,r] + model.x_freezing[t,p,r] + model.x_marination[t,p,r] + sum(model.a_flex[t,p,rng,r,1] for rng in model.wt_set2[r])
     model.fresh_inv_used = Expression(model.T, model.P, model.R, rule = expression_gen1)      # Quantity of Fresh Inventory used is equal to inv q used in freezing + q used in marination + q sold in fresh form
 
     def inventory_used_for_age(model,t,p,r):                                                  # Quantity of Fresh Inv used = Qunaity of Fresh Inv used for all ages
@@ -372,7 +368,7 @@ def create_instance(indexes,bom_data,age_comb_fresh):
         if t == 0:
             return model.initial_inv_frozen[p,r]
         else:
-            return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r] - sum(model.a_flex[t,p,rng,r,"Frozen"] for rng in model.wt_set2[r])
+            return model.inv_frozen[t-1,p,r] + model.x_freezing[t-1,p,r] - model.u_frozen[t-1,p,r] - sum(model.a_flex[t,p,rng,r,2] for rng in model.wt_set2[r])
     model.inv_frozen = Expression(model.T, model.P, model.R, rule = expression_gen3)            # Expression to derive Frozen Inventroy(opening) quantity on hand total without age
 
     def inv_requirement_balance1(model,t,p,r,l):
@@ -408,11 +404,11 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     ### Demand Satisfaction Constraints
 
     def fresh_requirement_balance(model,t,p,r):
-        return model.u_fresh[t,p,r] + model.v_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C_priority)
+        return model.u_fresh[t,p,r] + model.v_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,1,0] for c in model.C_priority)
     model.requirement_balance1 = Constraint(model.T, model.P, model.R, rule = fresh_requirement_balance)    # Sold + Unsold Fresh Without Marination
 
     def fresh_m_requirement_balance1(model,t,p,r):
-        return model.um_fresh[t,p,r] + model.vm_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C_priority)
+        return model.um_fresh[t,p,r] + model.vm_fresh[t,p,r] == sum(model.sales_order[t,c,p,r,1,1] for c in model.C_priority)
     model.requirement_balance2 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance1)   # Sold + Unsold Fresh with Marination
 
     def fresh_m_requirement_balance2(model,t,p,r):
@@ -420,12 +416,12 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     model.requirement_balance3 = Constraint(model.T, model.P, model.R, rule = fresh_m_requirement_balance2)    # Marination process is Make to Order
 
     def frozen_requirement_balance(model,t,p,r):
-        return model.u_frozen[t,p,r] + model.v_frozen[t,p,r] == sum(model.sales_order[t,c,p,r,'Frozen',0] for c in model.C_priority)
+        return model.u_frozen[t,p,r] + model.v_frozen[t,p,r] == sum(model.sales_order[t,c,p,r,2,0] for c in model.C_priority)
     model.requirement_balance4 = Constraint(model.T, model.P, model.R, rule = frozen_requirement_balance)    # Sold + Unsold Frozen Products without Marination
 
     def order_requirement_balance1(model,t,p,r):
-        lst_p1 = set(model.order_group[t,1,p,r,"Fresh",0])
-        lst_p2 = set(model.order_group[t,2,p,r,"Fresh",0])
+        lst_p1 = set(model.order_group[t,1,p,r,1,0])
+        lst_p2 = set(model.order_group[t,2,p,r,1,0])
         my_set = lst_p1.union(lst_p2)
         if my_set == set():
             return Constraint.Skip
@@ -434,8 +430,8 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     model.requirement_balance5 = Constraint(model.T, model.P, model.R, rule = order_requirement_balance1)    # Sold fresh = total quantity contained in order
 
     def order_requirement_balance2(model,t,p,r):
-        lst_p1 = set(model.order_group[t,1,p,r,"Fresh",1])
-        lst_p2 = set(model.order_group[t,2,p,r,"Fresh",1])
+        lst_p1 = set(model.order_group[t,1,p,r,1,1])
+        lst_p2 = set(model.order_group[t,2,p,r,1,1])
         my_set = lst_p1.union(lst_p2)
         if my_set == set():
             return Constraint.Skip
@@ -444,8 +440,8 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     model.requirement_balance6 = Constraint(model.T, model.P, model.R, rule = order_requirement_balance2)    # Sold fresh = total quantity contained in orders
 
     def order_requirement_balance3(model,t,p,r):
-        lst_p1 = set(model.order_group[t,1,p,r,"Frozen",0])
-        lst_p2 = set(model.order_group[t,2,p,r,"Frozen",0])
+        lst_p1 = set(model.order_group[t,1,p,r,2,0])
+        lst_p2 = set(model.order_group[t,2,p,r,2,0])
         my_set = lst_p1.union(lst_p2)
         if my_set == set():
             return Constraint.Skip
@@ -466,23 +462,23 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     model.fullfillment2 = Constraint(model.T, model.P, model.RNG, model.P_type, rule = flex_size_fulfillment2)
 
     def order_requirement_balance4(model,t,p,rng):
-        lst_p1 = set(model.flex_order_group[t,1,p,rng,"Fresh",0])
-        lst_p2 = set(model.flex_order_group[t,2,p,rng,"Fresh",0])
+        lst_p1 = set(model.flex_order_group[t,1,p,rng,1,0])
+        lst_p2 = set(model.flex_order_group[t,2,p,rng,1,0])
         my_set = lst_p1.union(lst_p2)
         if my_set == set():
             return Constraint.Skip
         else:
-            return model.u_flex[t,p,rng,"Fresh"] == sum(model.flex_order_qty_supplied[o] for o in my_set)
+            return model.u_flex[t,p,rng,1] == sum(model.flex_order_qty_supplied[o] for o in my_set)
     model.requirement_balance9 = Constraint(model.T, model.P, model.RNG, rule = order_requirement_balance4)
 
     def order_requirement_balance5(model,t,p,rng):
-        lst_p1 = set(model.flex_order_group[t,1,p,rng,"Frozen",0])
-        lst_p2 = set(model.flex_order_group[t,2,p,rng,"Frozen",0])
+        lst_p1 = set(model.flex_order_group[t,1,p,rng,2,0])
+        lst_p2 = set(model.flex_order_group[t,2,p,rng,2,0])
         my_set = lst_p1.union(lst_p2)
         if my_set == set():
             return Constraint.Skip
         else:
-            return model.u_flex[t,p,rng,"Frozen"] == sum(model.flex_order_qty_supplied[o] for o in my_set)
+            return model.u_flex[t,p,rng,2] == sum(model.flex_order_qty_supplied[o] for o in my_set)
     model.requirement_balance10 = Constraint(model.T, model.P, model.RNG, rule = order_requirement_balance5)
 
     def flex_order_fulfillment_limiter(model,o):
@@ -507,7 +503,7 @@ def create_instance(indexes,bom_data,age_comb_fresh):
 
     def expression_gen6(model):
         return sum(model.order_qty_supplied[o]*model.order_sp[o] for o in model.O)
-        # return sum(model.u_fresh[t,p,r]*model.selling_price[p,r,'Fresh',0] + model.um_fresh[t,p,r]*model.selling_price[p,r,'Fresh',1] + model.u_frozen[t,p,r]*model.selling_price[p,r,'Frozen',0] for p in model.P for r in model.R)
+        # return sum(model.u_fresh[t,p,r]*model.selling_price[p,r,1,0] + model.um_fresh[t,p,r]*model.selling_price[p,r,1,1] + model.u_frozen[t,p,r]*model.selling_price[p,r,2,0] for p in model.P for r in model.R)
     model.selling_gains = Expression(rule = expression_gen6)   # Calculated selling gains obtained from satisfied demand of SKU's
 
     def expression_gen7(model,t):
@@ -515,7 +511,7 @@ def create_instance(indexes,bom_data,age_comb_fresh):
     model.operations_cost = Expression(model.T, rule = expression_gen7)   # Calculating total cost incurred in processing in cutup + freezing + marination process
 
     def expression_gen8(model,t):
-        return sum(model.total_inv_fresh[t,p,r]*model.inventory_holding_cost[p,r,'Fresh'] + model.ifz[t,p,r]*model.inventory_holding_cost[p,r,'Frozen'] for p in model.P for r in model.R)
+        return sum(model.total_inv_fresh[t,p,r]*model.inventory_holding_cost[p,r,1] + model.ifz[t,p,r]*model.inventory_holding_cost[p,r,2] for p in model.P for r in model.R)
     model.holding_cost = Expression(model.T, rule = expression_gen8)        # Calculation total Cost Incurred to hold the imbalance inventory
 
     def expression_gen9(model):
@@ -548,7 +544,7 @@ def create_instance(indexes,bom_data,age_comb_fresh):
 
     def obj_fcn(model):
 
-        if scenario_id == 1:
+        if scenario == 1:
 
             def carcass_availability(model,t,r):
                 return model.z[t,r] <= model.H[t,r]
@@ -569,18 +565,18 @@ def create_instance(indexes,bom_data,age_comb_fresh):
             return -1*model.profit_projected
             # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
 
-        elif scenario_id == 2:
+        elif scenario == 2:
 
             def produce_fresh_for_p1(model,t,p,r):
-                return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',0]
+                return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,1,0]
             model.SC3_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1) # Total Sales > Priority Fulfillment
 
             def produce_fresh_m_for_p1(model,t,p,r):
-                return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,'Fresh',1]
+                return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,1,1]
             model.SC3_Constraint2 = Constraint(model.T, model.P, model.R, rule = produce_fresh_m_for_p1)  # Total Sales > Priority Fulfillment
 
             def produce_frozen_for_p1(model,t,p,r):
-                return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,'Frozen',0]
+                return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,2,0]
             model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)   # Total Sales > Priority Fulfillment
 
             def produce_flex_for_p1(model,t,p,rng,typ):   # Both flex and frozen combined

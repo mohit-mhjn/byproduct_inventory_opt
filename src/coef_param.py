@@ -40,14 +40,11 @@ import pandas
 import json
 import pickle
 import datetime
-import configparser
-config = configparser.ConfigParser()
-config.read('../start_config.ini')
 
 def update_coef():
 
     capacity_dct = {'cutting_pattern':None,'freezing':None, 'marination':None}
-    cost_dct = {'selling_price':None, 'ops_cost':None, 'freezing_cost':None, 'holding_cost':None, 'marination_cost':None}
+    cost_dct = {'selling_price':None, 'cutting_cost':None, 'freezing_cost':None, 'holding_cost':None, 'marination_cost':None}
 
     if bool(int(config['input_source']['mySQL'])):
         import MySQLdb
@@ -83,8 +80,8 @@ def update_coef():
     # Operational Cost
     cp_master = cp_master.filter(items=['cp_id','capacity','ops_cost'])
     cp_master.drop_duplicates(inplace=True)
-    cost_dct['ops_cost'] = cp_master.set_index('cp_id').to_dict(orient='dict')['ops_cost']
-    capacity_dct['cp_id'] = cp_master.set_index('cp_id').to_dict(orient='dict')['capacity']
+    cost_dct['cutting_cost'] = cp_master.set_index('cp_id').to_dict(orient='dict')['ops_cost']
+    capacity_dct['cutting_pattern'] = cp_master.set_index('cp_id').to_dict(orient='dict')['capacity']
 
     # Freezing Cost + Capacity
     # Marination Cost + Capacity
@@ -104,11 +101,14 @@ def update_coef():
     # print (hc_dct) #Holding Cost Dictionary
 
     #Cacheing the objects
-    with open("../cache/cost_coef","wb") as fp:
-        pickle.dump(cost_dct,fp)
+    with open("../cache/master_data","rb") as fp:
+        master = pickle.load(fp)
 
-    with open("../cache/capacity_coef","wb") as fp:
-        pickle.dump(capacity_dct,fp)
+    master.cost_dct = cost_dct
+    master.capacity_dct = capacity_dct
+
+    with open("../cache/master_data","wb") as fp:
+        pickle.dump(master,fp)
 
     # Recording Event in the status file
     with open("../update_status.json","r") as jsonfile:
@@ -123,17 +123,17 @@ def update_coef():
     print("SUCCESS : capacity_coef updated!")
     return None
 
-def read_coef():
-    # Loading the cached files
-    with open("../cache/cost_coef","rb") as fp:
-        cost_dct = pickle.load(fp)
-    with open("../cache/capacity_coef","rb") as fp:
-        capacity_dct = pickle.load(fp)
-    return {'cost':cost_dct,'capacity':capacity_dct}
+# def read_coef():
+#     # Loading the cached files
+#     with open("../cache/capacity_coef","rb") as fp:
+#         capacity_dct = pickle.load(fp)
+#     return {'cost':cost_dct,'capacity':capacity_dct}
 
 if __name__=="__main__":
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('../start_config.ini')
     update_coef()
-    print (read_coef()['cost']['selling_price'][(1,1,1,1)])

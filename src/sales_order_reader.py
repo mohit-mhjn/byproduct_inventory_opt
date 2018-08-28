@@ -28,27 +28,49 @@ import pandas
 import datetime
 import warnings
 
-def get_orders(indexes, horizon):
+def get_orders(master,var_data,config):
+
+    horizon = var_data.horizon
+
     # Get Orders
-    orders = pandas.read_csv("../input_files/sales_order.csv")
+    if bool(int(config['input_source']['mySQL'])):
+        import MySQLdb
+        db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
+                             password=config['db']['password'])
+        db_cursor = db.cursor()
+
+        # Index of Bird Types
+        query_1 = "select * from sales_order"
+        db_cursor.execute(query_1)
+        orders = pandas.DataFrame(list(db_cursor.fetchall()), columns=['order_dt','bill_number','customer_id','sku_id','part_count','part_weight'])
+
+        query_2 = "select * from sku_master"
+        db_cursor.execute(query_2)
+        i_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['sku_id','pgroup_id','bird_type_id','product_type','marination','active','selling_price','holding_cost','shelf_life'])
+
+        query_3 = "select * from customer"
+        db_cursor.execute(query_3)
+        c_master = pandas.DataFrame(list(db_cursor.fetchall()), columns=['customer_id','description','priority','serv_agrmnt'])
+
+    else:
+        orders = pandas.read_csv("../input_files/sales_order.csv")
+        i_master = pandas.read_csv("../input_files/sku_master.csv") # Getting Inventory Shelf Life
+        c_master = pandas.read_csv("../input_files/customer.csv")
+
     if orders.empty:
         raise ImportError("No orders found; error code: 100A")
 
     # Get Conversion Factor
-    from conv_factor import get_conv_factor
-    yld = get_conv_factor()
+    yld = pandas.DataFrame(master.yld_dct)
 
     # Getting Flexible size ranges
-    from index_reader import read_masters
-    ro = read_masters()
-    flexible_types = list(ro["weight_range"].keys())
+    flexible_types = list(master.weight_range.keys())
 
     # Get Customer Masters
-    c_master = pandas.read_csv("../input_files/customer.csv")
-    c_master = c_master.filter(items = ["customer_id","priority","customer_sla"])
+
+    c_master = c_master.filter(items = ["customer_id","priority","serv_agrmnt"])
 
     # Get SKU Master
-    i_master = pandas.read_csv("../input_files/sku_master.csv")
     i_master = i_master.filter(items = ["sku_id","pgroup_id","bird_type_id","product_type","marination","selling_price"]) # Temporary getting selling price from SKU_Master
                                                                                                                                        # Planning to get this from Customer SKU Pricing table (create new)
     #Merge Conv Factor to orders
@@ -66,7 +88,7 @@ def get_orders(indexes, horizon):
     ## NON FLEXIBLE/STRICT SIZE TYPE ############################
 
     # Continuing with Non-Flex type SKU orders >> Covnversion Only possible with strict bird type SKU Categoreis
-    print(orders.columns,yld.columns)
+    # print(orders.columns,yld.columns)
     orders = orders.merge(yld, on =["pgroup_id","bird_type_id"])
     orders['order_qty'] = 0
     if not orders.empty:
@@ -92,14 +114,14 @@ def get_orders(indexes, horizon):
 
     # > 99 are flex type orders >> As defined in flex type
     ## Orders are avaialble in weight (Assumption)
-    flex_orders = flex_orders.filter(items = ["order_dt","priority","bill_number","pgroup_id","bird_type_id","product_type","marination","customer_sla","selling_price","part_weight"])
+    flex_orders = flex_orders.filter(items = ["order_dt","priority","bill_number","pgroup_id","bird_type_id","product_type","marination","serv_agrmnt","selling_price","part_weight"])
     flex_orders['order_qty'] = flex_orders['part_weight']
     flex_orders = flex_orders[(flex_orders.order_qty > 0)]
     if flex_orders.empty:
         warnings.warn("flexible size type orders not found, error code: 100D")
 
     # print(flex_orders)
-    flex_order_breakup_df = flex_orders.filter(items=["order_dt","priority","bill_number","pgroup_id","bird_type_id","product_type","marination","customer_sla","selling_price","order_qty"])
+    flex_order_breakup_df = flex_orders.filter(items=["order_dt","priority","bill_number","pgroup_id","bird_type_id","product_type","marination","serv_agrmnt","selling_price","order_qty"])
     flex_order_breakup = flex_order_breakup_df.set_index(["bill_number"]).to_dict(orient = 'index')
 
     flex_order_group_df = flex_order_breakup_df.groupby(by = ["order_dt","priority","pgroup_id","bird_type_id","product_type","marination"])["bill_number"].apply(list)
@@ -109,34 +131,53 @@ def get_orders(indexes, horizon):
     flex_orders = flex_orders.groupby(by = ["order_dt","priority","pgroup_id","bird_type_id","product_type","marination"]).sum()
     flex_order_dct = flex_orders.to_dict(orient = 'dict')['order_qty']
 
-    return {"strict":{'aggregate':order_dct,"breakup":order_breakup,"grouped_by_product":order_group},
-            "flexible":{'aggregate':flex_order_dct,"breakup":flex_order_breakup,"grouped_by_product":flex_order_group}}
+    ## Append Data in Var_data object :
+    var_data.orders_aggregate = order_dct
+    var_data.order_breakup = order_breakup
+    var_data.order_grouped = order_group
+
+    var_data.flex_orders_aggregate = flex_order_dct
+    var_data.flex_order_grouped = flex_order_group
+    var_data.flex_order_breakup = flex_order_breakup
+
+    # return {"strict":{'aggregate':order_dct,"breakup":order_breakup,"grouped_by_product":order_group},
+    #        "flexible":{'aggregate':flex_order_dct,"breakup":flex_order_breakup,"grouped_by_product":flex_order_group}}
+    return var_data
 
 
 if __name__=="__main__":
-
+    import pickle
     import os
+    from inputs import *
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
-    from index_reader import read_masters
-    indexes = read_masters()
-    horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)]
-    orders = get_orders(indexes,horizon)
+    # from index_reader import read_masters
+    # indexes = read_masters()
+    # horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)]
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('../start_config.ini')
+
+    with open("../cache/master_data","rb") as fp:
+        master = pickle.load(fp)
+
+    var_data = decision_input(datetime.date(2018,6,28),3)
+    var_data = get_orders(master,var_data,config)
 
     print ("\nFLEXIBLE BIRD SIZE/TYPE SKU >>>\n")
     print (" Format 1 :")
-    print (orders['flexible']["aggregate"])
+    print (var_data.flex_orders_aggregate)
     print (" Format 2 :")
-    print (orders['flexible']["breakup"])
+    print (var_data.flex_order_breakup)
     print (" Format 3 :")
-    print (orders['flexible']["grouped_by_product"])
+    print (var_data.flex_order_grouped)
 
     print ("\nSTRICT BIRD SIZE/TYPE SKU >>>\n")
     print (" Format 1 :")
-    print (orders['strict']["aggregate"])
+    print (var_data.orders_aggregate)
     print (" Format 2 :")
-    print (orders['strict']["breakup"])
+    print (var_data.order_breakup)
     print (" Format 3 :")
-    print (orders['strict']["grouped_by_product"])
+    print (var_data.order_grouped)
 
     print ("SUCCESS : orders imported!")
