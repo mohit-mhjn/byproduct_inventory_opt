@@ -23,7 +23,7 @@ def get_birds(master,var_data,config):
     global us
     # Long Term Input from Farm Data/Harvest Data will be connected here >>
     # More Clarification required for bird Inventroy
-    if bool(int(config['input_source']['mySQL'])):
+    if bool(int(config['input_source']['mysql'])):
         import MySQLdb
         db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
                              password=config['db']['password'])
@@ -77,7 +77,7 @@ def get_parts(master,var_data,config):
         return None
 
     # Preprocess Inventroy data table from ERP in this function
-    if bool(int(config['input_source']['mySQL'])):
+    if bool(int(config['input_source']['mysql'])):
         import MySQLdb
         db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
                              password=config['db']['password'])

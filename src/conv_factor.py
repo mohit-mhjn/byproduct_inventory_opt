@@ -21,7 +21,7 @@ import json
 import datetime
 
 def update_conv_factor():
-    if bool(int(config['input_source']['mySQL'])):
+    if bool(int(config['input_source']['mysql'])):
         import MySQLdb
         db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
                              password=config['db']['password'])

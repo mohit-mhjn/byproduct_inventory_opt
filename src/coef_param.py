@@ -46,7 +46,7 @@ def update_coef():
     capacity_dct = {'cutting_pattern':None,'freezing':None, 'marination':None}
     cost_dct = {'selling_price':None, 'cutting_cost':None, 'freezing_cost':None, 'holding_cost':None, 'marination_cost':None}
 
-    if bool(int(config['input_source']['mySQL'])):
+    if bool(int(config['input_source']['mysql'])):
         import MySQLdb
         db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
                              password=config['db']['password'])

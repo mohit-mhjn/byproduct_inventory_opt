@@ -1,3 +1,29 @@
+"""
+Note: Compatible with Python 3
+
+This file handles the main pyomo MILP that comprises of required Sets, Constraints, Expression, Param and Model objects.
+Concrete model is used for pyomo instance creation
+
+Loading Data in concrete model:
+To load the static data cached data is imported from the respective reader modules
+To load the dynamic data input files are read and transformed using the function of the respective readers (sales,inventory)
+
+General Ref:
+combination_gen : function used to load pyomo indexed sets in the model. The combinations are preprocessed and cached
+expression_gen : fucntion used to generate pyomo expressions that are mentioned against
+A [i] Constraint : Name used to indicate constraint with index i
+In Comments, Product is reffered as product group
+
+Assumptions:
+1. If a cutting pattern is applied on whole bird it applies on all the sections of the birds in equal number of times
+2. Inventory transfer if FIFO
+3. Frozen product doesn't age (long shelf life in comparison with planning horizon)
+
+To Do:
+1. Remove print and add logger
+3. Warehouse Capacity
+4  MOQ at Lines/CP
+"""
 from pyomo.environ import *
 import datetime
 

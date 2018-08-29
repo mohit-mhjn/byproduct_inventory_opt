@@ -53,7 +53,7 @@ import datetime
 
 def update_masters():
 
-    if bool(int(config['input_source']['mySQL'])):
+    if bool(int(config['input_source']['mysql'])):
         import MySQLdb
         db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
                              password=config['db']['password'])
@@ -145,7 +145,7 @@ def update_masters():
     with open('../cache/master_data',"rb") as fp:
         master = pickle.load(fp)
 
-    
+
     master.bird_type = typ_dct
     master.cutting_pattern = cp_dct
     master.section = sec_dct

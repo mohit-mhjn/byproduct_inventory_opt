@@ -33,7 +33,7 @@ def get_orders(master,var_data,config):
     horizon = var_data.horizon
 
     # Get Orders
-    if bool(int(config['input_source']['mySQL'])):
+    if bool(int(config['input_source']['mysql'])):
         import MySQLdb
         db = MySQLdb.connect(host=config['db']['host'], database=config['db']['db_name'], user=config['db']['user'],
                              password=config['db']['password'])
