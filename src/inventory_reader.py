@@ -19,10 +19,12 @@ import json
 import warnings
 import configparser
 config = configparser.ConfigParser()
+config.optionxform = str
 config.read('../start_config.ini')
 
 def get_birds(indexes,horizon):
     global us
+    # print(int(config['input_source']['mySQL']))
     # Long Term Input from Farm Data/Harvest Data will be connected here >>
     # More Clarification required for bird Inventroy
     if bool(int(config['input_source']['mySQL'])):

@@ -1,4 +1,4 @@
-class static_input(object):
+class master_input(object):
 
     def __init__(self):
 
@@ -48,22 +48,14 @@ class static_input(object):
     def __repr__(self):
         return self.client + " : " + self.plant
 
-def create_object():
-    import os
-    import pickle
-    directory = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(directory)
-    cache_obj = model_input()
-    with open("input_files/cache/input_object","wb") as fp:
-        pickle.dump(cache_obj,fp)
 
-class dynamic_inputs(object):
+class decision_input(object):
 
     def __init__(self,dt,lenth_of_plan):
         self.exec_date = dt
 
         self.horizon = [dt+datetime.timedelta(days = i) for i in range(dt)]
-        self.t_dt_map = [t:str(horizon[t]) for t in range(dt)]
+        self.t_dt_map = {t:str(horizon[t]) for t in range(dt)}
 
         self.orders_aggregate = None
         self.order_breakup = None
@@ -73,9 +65,25 @@ class dynamic_inputs(object):
         self.flex_order_grouped = None
         self.flex_order_breakup = None
 
+        self.bird_availability = None
+        self.part_inventory_fresh = None
+        self.part_inventory_frozen = None
+
 
 
 
 if __name__=="__main__":
     print ("This module is the class definition of input objects in the main program!")
+
+
+    def create_object():
+        import os
+        import pickle
+        directory = os.path.dirname(os.path.abspath(__file__))
+        os.chdir(directory)
+        cache_obj = master_input()
+        with open("../cache/master_data", "wb") as fp:
+            pickle.dump(cache_obj, fp)
+
+
     create_object()

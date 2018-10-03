@@ -104,11 +104,14 @@ def update_coef():
     # print (hc_dct) #Holding Cost Dictionary
 
     #Cacheing the objects
-    with open("../cache/cost_coef","wb") as fp:
-        pickle.dump(cost_dct,fp)
+    with open("../cache/master_data", "rb") as fp:
+        master = pickle.load(fp)
+    master.capacity_dct = capacity_dct
+    master.cost_dct = cost_dct
 
-    with open("../cache/capacity_coef","wb") as fp:
-        pickle.dump(capacity_dct,fp)
+
+    with open("../cache/master_data","wb") as fp:
+        pickle.dump(master,fp)
 
     # Recording Event in the status file
     with open("../update_status.json","r") as jsonfile:
@@ -135,5 +138,6 @@ if __name__=="__main__":
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
+    from inputs import *
     update_coef()
-    print (read_coef()['cost']['selling_price'][(1,1,1,1)])
+    # print (read_coef()['cost']['selling_price'][(1,1,1,1)])

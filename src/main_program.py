@@ -61,10 +61,10 @@ parser.add_argument("--scenario_id", help="selection of scenario_id", type=int)
 args = parser.parse_args()
 scenario_id = args.scenario_id
 if scenario_id == None:
-    logger_2.warning("scenario selection not found \n\tUse argument \"--scenario_id n\" to define scenario number \n\tValid options for n = [1,2])")
+    logger.warning("scenario selection not found \n\tUse argument \"--scenario_id n\" to define scenario number \n\tValid options for n = [1,2])")
     scenario_id = 2   # Scenario id set : [1,2] >> 1 is working 2 is infeasible
-    logger_2.info("default scenario = %d"%(scenario_id))
-logger_2.info("selected scenario id == %d"%(scenario_id))
+    logger.info("default scenario = %d"%(scenario_id))
+logger.info("selected scenario id == %d"%(scenario_id))
 
 # Importing Data processing modules
 from sales_order_reader import get_orders
@@ -93,17 +93,17 @@ flex_ranges = read_flex_typ()
 
 ## Variable Data
 horizon = [datetime.date(2018,6,28),datetime.date(2018,6,29),datetime.date(2018,6,30)] # To Do: Get dates through Index
-orders = get_orders(indexes,horizon)  # Function to get sales orders
-birds_inv = get_birds(indexes,horizon) # Function to get birds availability at date,bird_type level
-parts_inv = get_parts(indexes,horizon) # Function to get initial parts inventory at part,bird_type and age level (note :age only for fresh)
+orders = get_orders(indexes, horizon)  # Function to get sales orders
+birds_inv = get_birds(indexes, horizon) # Function to get birds availability at date,bird_type level
+parts_inv = get_parts(indexes, horizon) # Function to get initial parts inventory at part,bird_type and age level (note :age only for fresh)
 fresh_inv = parts_inv['Fresh']        # Separating fresh inventory
 frozen_inv = parts_inv['Frozen']            # Separating frozen inventory
 
-orders_aggregate = orders["strict"]["aggregate"]      # Oders agreegated by C_Priority
+orders_aggregate = orders["strict"]["aggregate"]      # Orders aggregated by C_Priority
 order_breakup = orders["strict"]["breakup"]           # Individual Orders
 order_grouped = orders["strict"]["grouped_by_product"] # Orders belonging to a SKU key at time t
 
-flex_orders_aggregate = orders["flexible"]["aggregate"]        # Oders agreegated by C_Priority
+flex_orders_aggregate = orders["flexible"]["aggregate"]        # Orders aggregated by C_Priority
 flex_order_breakup = orders["flexible"]["breakup"]             # Individual Orders
 flex_order_grouped = orders["flexible"]["grouped_by_product"]  # Orders belonging to a SKU key at time t
 
@@ -117,7 +117,7 @@ model.J = Set(initialize= indexes['cutting_pattern'].keys())   # cutting pattern
 model.P = Set(initialize= indexes['product_group'].keys())     # products
 model.K = Set(initialize= indexes['section'].keys())          # no of sections
 model.R = Set(initialize= indexes['bird_type'].keys())         # type of carcasses
-model.P_type = Set(initialize = indexes['product_typ'])          # Type of Products
+model.P_type = Set(initialize = [i+1 for i in range(len(indexes['product_typ']))])       # Type of Products
 model.M = Set(initialize = indexes['marination'])                # Marination Indicator
 model.C_priority = Set(initialize = indexes['c_priority'])       # Customer Priority Indicator
 model.O = Set(initialize = order_breakup.keys())                 # Order Id's for strict bird type products
@@ -288,7 +288,7 @@ model.yd = Param(model.indx_pjr, initialize = yield_gen)    # Yield of product p
 
 def shelflife_gen(model,p,r): # Only Fresh
     global shelf_life_fresh
-    return shelf_life_fresh[(p,r)]
+    return shelf_life_fresh[(p, r)]
 model.L = Param(model.P,model.R,initialize = shelflife_gen)       # Shelf Life of fresh product p of bird type r
 
 def capacity_gen1(model,process):
@@ -311,10 +311,11 @@ model.unit_freezing_cost = Param(initialize= cost_data['freezing_cost'])   # Ope
 #     return cost_data[process]
 model.unit_marination_cost = Param(initialize= cost_data['marination_cost'])   # Operations Cost Coef. Marination Cost
 
-def cost_gen3(model,j):
-    global cost_data
-    return cost_data['ops_cost'][j]
-model.unit_cutting_cost = Param(model.J,initialize = cost_gen3)    # Operations Cost Cost of Cutting >> Related with Cutting Pattern
+# def cost_gen3(model,j):
+#     global cost_data
+#     print(cost_data)
+#     return cost_data['ops_cost'][j]
+# model.unit_cutting_cost = Param(model.J,initialize = cost_gen3)    # Operations Cost Cost of Cutting >> Related with Cutting Pattern
 
 def cost_gen4(model,p,r,t):
     global cost_data
@@ -323,10 +324,11 @@ model.inventory_holding_cost = Param(model.P,model.R,model.P_type, initialize = 
 
 def cost_gen5(model,p,r,t,m):
     global cost_data
-    if t == "Frozen" and m == 1: # >> Removed from Consideration frozen marinated sku
+    if t == 1 and m == 1: # >> Removed from Consideration frozen marinated sku
         return 0
     else:
         return cost_data['selling_price'][(p,r,t,m)]
+
 model.selling_price = Param(model.P,model.R,model.P_type,model.M, initialize = cost_gen5)  # Selling Price (profit Cost Coef) selling price of product p bird type R against fresh/frozen and marination 1/0
 
 def sla_fulfillment(model,o):
