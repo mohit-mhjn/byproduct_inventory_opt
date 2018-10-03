@@ -20,16 +20,16 @@ To Do:
 """
 
 from pyomo.environ import *   # To get the value method in the current environment
+import pandas
+import itertools
 
-def summarize_results(model,horizon,indexes,print_tables=False,keep_files = False):
-
-    import pandas
-    import itertools
+def summarize_results(model,var_data,master,print_tables=False,keep_files = False):
+    horizon = var_data.horizon
 
     # Bird Type Requirement
     bird_req_data = []
     for t,r in itertools.product(model.T,model.R):
-        bird_req_data.append({'date':str(horizon[t]),'bird_size':indexes['bird_type'][r]['bird_type'],'req_number':model.z[t,r].value})
+        bird_req_data.append({'date':str(horizon[t]),'bird_size':master.bird_type[r]['description'],'req_number':model.z[t,r].value})
     bird_type_requirement = pandas.DataFrame(bird_req_data)
     bird_type_requirement = bird_type_requirement[(bird_type_requirement.req_number > 0)]
     bird_type_requirement.name = 'bird requirement'
@@ -38,7 +38,7 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
     #Cutting Pattern Plan
     cutting_pattern_data = []
     for t,(r,k,j) in itertools.product(model.T,model.indx_rkj):
-        cutting_pattern_data.append({'date':str(horizon[t]),'bird_type':indexes['bird_type'][r]['bird_type'],'section':indexes['section'][k]['description'],'cutting_pattern':j,'line':indexes['cutting_pattern'][j]['line'], 'pattern_count':model.zkj[t,r,k,j].value })
+        cutting_pattern_data.append({'date':str(horizon[t]),'bird_type':master.bird_type[r]['description'],'section':master.section[k]['description'],'cutting_pattern':j,'line':master.cutting_pattern[j]['cp_line'], 'pattern_count':model.zkj[t,r,k,j].value })
     cutting_pattern_plan = pandas.DataFrame(cutting_pattern_data)
     cutting_pattern_plan = cutting_pattern_plan[(cutting_pattern_plan.pattern_count > 0)]
     cutting_pattern_plan.sort_values(by = ['date','bird_type','pattern_count','section'], inplace = True)
@@ -50,9 +50,9 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
     production_data3 = []
 
     for t,p,r in itertools.product(model.T, model.P, model.R):
-        production_data1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':value(model.xpr[t,p,r]),'UOM':'KG'})
-        production_data2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':model.x_freezing[t,p,r].value,'UOM':'KG'})
-        production_data3.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_produced':model.x_marination[t,p,r].value,'UOM':'KG'})
+        production_data1.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'quantity_produced':value(model.xpr[t,p,r]),'UOM':'KG'})
+        production_data2.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'quantity_produced':model.x_freezing[t,p,r].value,'UOM':'KG'})
+        production_data3.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'quantity_produced':model.x_marination[t,p,r].value,'UOM':'KG'})
 
     fresh_production = pandas.DataFrame(production_data1)
     fresh_production = fresh_production[(fresh_production.quantity_produced > 0)]
@@ -68,14 +68,14 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
 
     inventory_report1 = []
     for t,(p,r,l) in itertools.product(model.T,model.INV_Fresh):
-        inventory_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'age_days':l,'quantity_on_hand':model.ifs[t,p,r,l].value,'UOM':'KG'})
+        inventory_report1.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'age_days':l,'quantity_on_hand':model.ifs[t,p,r,l].value,'UOM':'KG'})
     fresh_inventory_report = pandas.DataFrame(inventory_report1)
     fresh_inventory_report = fresh_inventory_report[(fresh_inventory_report.quantity_on_hand > 0)]
     fresh_inventory_report.name = 'Projected Fresh Inventory'
 
     inventory_report2 = []
     for t,p,r in itertools.product(model.T,model.P, model.R):
-        inventory_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'quantity_on_hand':model.ifz[t,p,r].value,'UOM':'KG'})
+        inventory_report2.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'quantity_on_hand':model.ifz[t,p,r].value,'UOM':'KG'})
     frozen_inventory_report = pandas.DataFrame(inventory_report2)
     frozen_inventory_report = frozen_inventory_report[(frozen_inventory_report.quantity_on_hand > 0)]
     frozen_inventory_report.name = 'Projected Frozen Inventory'
@@ -87,21 +87,21 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
     for t,p,r in itertools.product(model.T,model.P,model.R):
         fresh_satisfied_q = model.u_fresh[t,p,r].value
         fresh_unsatisfied_q = model.v_fresh[t,p,r].value
-        orders1 = sum(model.sales_order[t,c,p,r,'Fresh',0] for c in model.C_priority)
-        selling_gains1 = model.selling_price[p,r,'Fresh',0]*fresh_satisfied_q
-        sales_cost_report1.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders1),'satisfied':fresh_satisfied_q,'unsatisfied':fresh_unsatisfied_q,'selling_gains':value(selling_gains1)})
+        orders1 = sum(model.sales_order[t,c,p,r,1,0] for c in model.C_priority)
+        selling_gains1 = model.selling_price[p,r,1,0]*fresh_satisfied_q
+        sales_cost_report1.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'orders':value(orders1),'satisfied':fresh_satisfied_q,'unsatisfied':fresh_unsatisfied_q,'selling_gains':value(selling_gains1)})
 
         marinated_satisfied_q = model.um_fresh[t,p,r].value
         marinated_unsatisfied_q = model.vm_fresh[t,p,r].value
-        orders2 = sum(model.sales_order[t,c,p,r,'Fresh',1] for c in model.C_priority)
-        selling_gains2 = model.selling_price[p,r,'Fresh',1]*marinated_satisfied_q
-        sales_cost_report2.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders2),'satisfied':marinated_satisfied_q,'unsatisfied':marinated_unsatisfied_q,'selling_gains':value(selling_gains2)})
+        orders2 = sum(model.sales_order[t,c,p,r,1,1] for c in model.C_priority)
+        selling_gains2 = model.selling_price[p,r,1,1]*marinated_satisfied_q
+        sales_cost_report2.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'orders':value(orders2),'satisfied':marinated_satisfied_q,'unsatisfied':marinated_unsatisfied_q,'selling_gains':value(selling_gains2)})
 
         frozen_satisfied_q = model.u_frozen[t,p,r].value
         frozen_unsatisfied_q = model.v_frozen[t,p,r].value
-        orders3 = sum(model.sales_order[t,c,p,r,'Frozen',0] for c in model.C_priority)
-        selling_gains3 = model.selling_price[p,r,'Frozen',0]*frozen_satisfied_q
-        sales_cost_report3.append({'date':str(horizon[t]),'product_group':indexes['product_group'][p]['product_group'],'bird_size':indexes['bird_type'][r]['bird_type'],'orders':value(orders3),'satisfied':frozen_satisfied_q,'unsatisfied':frozen_unsatisfied_q,'selling_gains':value(selling_gains3)})
+        orders3 = sum(model.sales_order[t,c,p,r,2,0] for c in model.C_priority)
+        selling_gains3 = model.selling_price[p,r,2,0]*frozen_satisfied_q
+        sales_cost_report3.append({'date':str(horizon[t]),'product_group':master.product_group[p]['description'],'bird_size':master.bird_type[r]['description'],'orders':value(orders3),'satisfied':frozen_satisfied_q,'unsatisfied':frozen_unsatisfied_q,'selling_gains':value(selling_gains3)})
 
 
     sales_fresh_sku = pandas.DataFrame(sales_cost_report1)
@@ -163,10 +163,10 @@ def summarize_results(model,horizon,indexes,print_tables=False,keep_files = Fals
         # Recording the event in the status file
         import json
         import datetime
-        with open("input_files/update_status.json","r") as jsonfile:
+        with open("../update_status.json","r") as jsonfile:
             us = dict(json.load(jsonfile))
             us['output_files'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
-        with open("input_files/update_status.json","w") as jsonfile:
+        with open("../update_status.json","w") as jsonfile:
             json.dump(us,jsonfile)
         print ("SUCCESS : output files exported!")
 

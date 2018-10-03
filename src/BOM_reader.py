@@ -71,26 +71,24 @@ import pandas
 import pickle
 import json
 import datetime
-import configparser
-config = configparser.ConfigParser()
-config.read('../start_config.ini')
+
 
 def update_combinations():
 
     def get_product_set(i,y):
         k = i[0]
         j = i[1]
-        df_tmp = y[y.section.map(set([k]).issuperset)]
-        df_tmp = df_tmp[(df_tmp.cutting_pattern == j)]
-        l = set(df_tmp['prod_group_index'])
+        df_tmp = y[y.section_id.map(set([k]).issuperset)]
+        df_tmp = df_tmp[(df_tmp.cp_id == j)]
+        l = set(df_tmp['pgroup_id'])
         return l
 
     def get_whole_product_set(h,y):
         k = h[0]
         j = h[1]
-        df_tmp = y[y.section.map(set([k]).issubset)]
-        df_tmp = df_tmp[(df_tmp.cutting_pattern == j)]
-        l = set(df_tmp['prod_group_index']) - sc_pg1[h]
+        df_tmp = y[y.section_id.map(set([k]).issubset)]
+        df_tmp = df_tmp[(df_tmp.cp_id == j)]
+        l = set(df_tmp['pgroup_id']) - sc_pg1[h]
         return l
 
     def yield_generator(y):
@@ -118,16 +116,19 @@ def update_combinations():
     y = y[y.yield_p > 0]   # Safeguard
     y["section_id"] = y["section_id"].apply(lambda x: [int(i) for i in x.split(".")])
 
-    from index_reader import read_masters
-    indx = read_masters()
-    section_data = indx['section']
-    pg_data = indx["product_group"]
-    cp_data = indx["cutting_pattern"]
-    b_typ_data = indx["bird_type"]
+    # from index_reader import read_masters
+    # indx = read_masters()
+    with open("../cache/master_data","rb") as fp:
+        master = pickle.load(fp)
+
+    section_data = master.section
+    pg_data = master.product_group
+    cp_data = master.cutting_pattern
+    b_typ_data = master.bird_type
 
     sec_cp_comb = set()   # Set of section and favourable cutting patterns (section,cutting_pattern)
     for sec in section_data.keys():
-        for cp in section_data[sec]['cutting_pattern']:
+        for cp in section_data[sec]['cp_id']:
             sec_cp_comb.add((int(sec),int(cp)))
 
     sc_pg1 = {i:get_product_set(i,y) for i in sec_cp_comb}  # Cutting Pattern used on a section yields a set of product group (Non Whole Bird Entities)
@@ -160,42 +161,55 @@ def update_combinations():
             for grp in in_PG:
                 my_set.add((r,k,j,grp))
 
-    # Creating a python object of all the data required >> Try Custom Class Here
-    bom_data = {'yield_data':yd,
-                'sec_nwb_pg':sc_pg1,
-                'sec_wb_pg':sc_pg2,
-                'iter_combs':{
-                'sec_cp':sec_cp_comb,
-                'typ_cp':typ_cp_comb,
-                'pgcptyp':pgcptyp_comb,
-                'typseccp':typseccp_comb,
-                'cptyp_pg':cptyp_pg_comb,
-                'typseccpp':my_set,
-                'pg_cptyp':pg_cptyp_comb}}
+    # Creating a python object of all the data required >>
+
+
+    master.yield_data = yd
+    master.sec_nwb_pg = sc_pg1
+    master.sec_wb_pg = sc_pg2
+    master.sec_cp = sec_cp_comb
+    master.typ_cp = typ_cp_comb
+    master.pgcptyp = pgcptyp_comb
+    master.typseccp = typseccp_comb   ### Not 1
+    master.cptyp_pg = cptyp_pg_comb     ##### Not 1 and Not 2 are known to be different
+    master.typseccpp = my_set        ### Not 2
+    master.pg_cptyp = pg_cptyp_comb
+
+    # bom_data = {'yield_data':yd,
+    #             'sec_nwb_pg':sc_pg1,
+    #             'sec_wb_pg':sc_pg2,
+    #             'iter_combs':{
+    #             'sec_cp':sec_cp_comb,
+    #             'typ_cp':typ_cp_comb,
+    #             'pgcptyp':pgcptyp_comb,
+    #             'typseccp':typseccp_comb,
+    #             'cptyp_pg':cptyp_pg_comb,
+    #             'typseccpp':my_set,
+    #             'pg_cptyp':pg_cptyp_comb}}
 
     # Dump object in a cache file
-    with open("../cache/bom_file","wb") as fp:
-        pickle.dump(bom_data,fp)
+    with open("../cache/master_data","wb") as fp:
+        pickle.dump(master,fp)
 
     # Recording Event in the status file
     with open("../update_status.json","r") as jsonfile:
         us = dict(json.load(jsonfile))
         us['bom_file'] = datetime.datetime.strftime(datetime.datetime.now(),"%Y-%m-%d %H:%M:%S")
+
     with open("../update_status.json","w") as jsonfile:
         json.dump(us,jsonfile)
+
     print("SUCCESS : bom file updated!")
 
     return None
-
-def read_combinations():
-    # Read cache and recreate the object
-    with open("../cache/bom_file","rb") as fp:
-        bom_data = pickle.load(fp)
-    return bom_data
 
 if __name__=='__main__':
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
+    import configparser
+    config = configparser.ConfigParser()
+    config.read('../start_config.ini')
+    from inputs import *
     update_combinations()
     # read_combinations()

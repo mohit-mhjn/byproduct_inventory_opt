@@ -44,7 +44,7 @@ def solve_model(model,p_summary = False, p_log = False):       # Custom Solve Me
     #model3 = copy.deepcopy(model)
     import configparser
     config = configparser.ConfigParser()
-    config.read('start_config.ini')
+    config.read('../start_config.ini')
 
     #initialization Setting
     mip_gap = float(config['solver']['mip_gap'])
