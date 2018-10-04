@@ -71,15 +71,18 @@ class decision_input(object):
         self.part_inv_fresh = None
         self.part_inv_frozen = None
 
+def create_object(cache_path):
+    cache_obj = master_input()
+    with open(cache_path,"wb") as fp:
+        pickle.dump(cache_obj,fp)
 
 if __name__=="__main__":
-    print ("This module is the class definition of input objects in the main program!")
-    def create_object():
-        import os
-        import pickle
-        directory = os.path.dirname(os.path.abspath(__file__))
-        os.chdir(directory)
-        cache_obj = master_input()
-        with open("../cache/master_data","wb") as fp:
-            pickle.dump(cache_obj,fp)
-    create_object()
+    print ("IMPORTED : class definition of input objects in the main program!")
+    import os
+    import pickle
+    directory = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(directory)
+    cache_path = "../cache/master_data"
+    create_object(cache_path)
+    print ("SUCEESS: input object created")
+    exit(0)

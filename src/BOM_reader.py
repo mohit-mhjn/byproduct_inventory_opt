@@ -72,7 +72,6 @@ import pickle
 import json
 import datetime
 
-
 def update_combinations():
 
     def get_product_set(i,y):
@@ -212,4 +211,3 @@ if __name__=='__main__':
     config.read('../start_config.ini')
     from inputs import *
     update_combinations()
-    # read_combinations()

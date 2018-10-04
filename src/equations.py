@@ -541,7 +541,7 @@ def create_instance(master,var_data,scenario = 1):
     model.holding_cost = Expression(model.T, rule = expression_gen8)        # Calculation total Cost Incurred to hold the imbalance inventory
 
     def expression_gen9(model):
-        return model.selling_gains - sum(model.operations_cost[t] for t in model.T) - sum(model.holding_cost[t] for t in model.T)
+        return A*model.selling_gains - B*(sum(model.operations_cost[t] for t in model.T) + sum(model.holding_cost[t] for t in model.T))
     model.profit_projected = Expression(rule = expression_gen9)            # Profit Equation
 
     ## Temporary Forcing Constraints (Testing) #########################

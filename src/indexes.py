@@ -50,8 +50,9 @@ import pandas
 import pickle
 import json
 import datetime
+from inputs import *
 
-def update_masters():
+def update_masters(config):
 
     if bool(int(config['input_source']['mysql'])):
         import MySQLdb
@@ -186,7 +187,7 @@ if __name__=='__main__':
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
     import configparser
+
     config = configparser.ConfigParser()
     config.read('../start_config.ini')
-    from inputs import *
-    update_masters()
+    update_masters(config)

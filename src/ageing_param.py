@@ -104,4 +104,3 @@ if __name__=="__main__":
     config.read('../start_config.ini')
     from inputs import *
     update_inv_life()
-    # print (read_inv_life())
