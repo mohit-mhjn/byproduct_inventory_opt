@@ -19,6 +19,11 @@ for i,chk in enumerate(check_dir):
     if not chk:
         os.mkdir(list_of_dir[i])  # Input video
 
+## Update path in config
+config["directory"]["dir_path"] = directory
+with open('start_config.ini', 'w') as configfile:
+    config.write(configfile)
+
 print ("SUCCESS : directories created!")
 #######################################################
 ## Create Required Objects in Cache
@@ -34,7 +39,6 @@ os.system("python3 src/inputs.py")
 os.system("python3 src/indexes.py")
 os.system("python3 src/BOM_reader.py")
 os.system("python3 src/coef_param.py")
+os.system("python3 src/conv_factor.py")
 os.system("python3 src/ageing_param.py")
 os.system("python3 src/flex_typ.py")
-
-## Create SKU Master
