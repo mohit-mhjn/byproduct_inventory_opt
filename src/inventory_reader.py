@@ -21,6 +21,7 @@ import warnings
 def get_birds(master,var_data,config):
     horizon = var_data.horizon
     global us
+    # print(int(config['input_source']['mySQL']))
     # Long Term Input from Farm Data/Harvest Data will be connected here >>
     # More Clarification required for bird Inventroy
     if bool(int(config['input_source']['mysql'])):

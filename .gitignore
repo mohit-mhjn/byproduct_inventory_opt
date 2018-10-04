@@ -10,3 +10,4 @@ logs/
 output_files/
 start_config.ini
 dash_app.py
+.Rhistory

@@ -133,6 +133,7 @@ if __name__=="__main__":
     import os
     directory = os.path.dirname(os.path.abspath(__file__))
     os.chdir(directory)
+    from inputs import *
     import configparser
     config = configparser.ConfigParser()
     config.read('../start_config.ini')

@@ -50,6 +50,7 @@ class master_input(object):
     def __repr__(self):
         return self.client + " : " + self.plant
 
+
 class decision_input(object):
 
     def __init__(self,dt,lenth_of_plan):
@@ -58,6 +59,7 @@ class decision_input(object):
         self.horizon = [dt+datetime.timedelta(days = i) for i in range(lenth_of_plan)]
         self.t_dt_map = {t: str(self.horizon[t]) for t in range(lenth_of_plan)}
         self.dt_t_map = {self.horizon[k]:k for k,v in self.t_dt_map.items()}
+
 
         self.orders_aggregate = None
         self.order_breakup = None
@@ -68,8 +70,10 @@ class decision_input(object):
         self.flex_order_breakup = None
 
         self.bird_availability = None
+
         self.part_inv_fresh = None
         self.part_inv_frozen = None
+
 
 def create_object(cache_path):
     cache_obj = master_input()
@@ -85,4 +89,3 @@ if __name__=="__main__":
     cache_path = "../cache/master_data"
     create_object(cache_path)
     print ("SUCEESS: input object created")
-    exit(0)

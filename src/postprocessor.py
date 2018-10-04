@@ -158,7 +158,7 @@ def summarize_results(model,var_data,master,print_tables=False,keep_files = Fals
         os.chdir(directory)
 
         for df in output_tables:
-            df.to_csv(path_or_buf = "output_files/%s.csv"%(df.name),index = False)
+            df.to_csv(path_or_buf = "../output_files/%s.csv"%(df.name),index = False)
 
         # Recording the event in the status file
         import json

@@ -24,6 +24,7 @@ To Do:
 3. Warehouse Capacity
 4  MOQ at Lines/CP
 """
+
 from pyomo.environ import *
 import datetime
 
@@ -541,10 +542,10 @@ def create_instance(master,var_data,scenario = 1):
     model.holding_cost = Expression(model.T, rule = expression_gen8)        # Calculation total Cost Incurred to hold the imbalance inventory
 
     def expression_gen9(model):
-        return A*model.selling_gains - B*(sum(model.operations_cost[t] for t in model.T) + sum(model.holding_cost[t] for t in model.T))
+        return model.selling_gains - (sum(model.operations_cost[t] for t in model.T) + sum(model.holding_cost[t] for t in model.T))
     model.profit_projected = Expression(rule = expression_gen9)            # Profit Equation
 
-    ## Temporary Forcing Constraints (Testing) #########################
+    ## Temporary Forcing Constraints (Testing Purpose) #########################
 
     # def force1(model):
     #     return model.zj[0,1,1] >= 100
@@ -628,3 +629,36 @@ def create_instance(master,var_data,scenario = 1):
 
 if __name__=="__main__":
     print ("Pyomo : Concrete Model Generator Method \nImbalance Parts Optimization \nPROMPT : Invalid Execution! \nACTION : Supply Parameters!")
+
+
+"""
+## LINES ARCHIVED ################
+
+## Objective function Scenario 2 found not to be important for customers
+
+elif scenario_id == 2:
+
+    def produce_fresh_for_p1(model,t,p,r):
+        return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,1,0]
+    model.SC2_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1)
+
+    def produce_fresh_m_for_p1(model,t,p,r):
+        return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,1,1]
+    model.SC2_Constraint2 = Constraint(model.T, model.P, model.R, rule = produce_fresh_m_for_p1)
+
+    def produce_frozen_for_p1(model,t,p,r):
+        return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,2,0]
+    model.SC2_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)
+
+    def production_constraint_for_p1(model,t,p,r):
+        req_fresh = model.sales_order[t,1,p,r,1,0] + model.sales_order[t,1,p,r,1,1] - model.total_inv_fresh[t,p,r]
+        req_frozen = model.sales_order[t,1,p,r,2,0] - model.inv_frozen[t,p,r]
+        return model.xpr[t,p,r] <= req_fresh + req_frozen
+    model.SC2_Constraint4 = Constraint(model.T,model.P, model.R, rule = production_constraint_for_p1)
+    # return sum(model.profit_projected[t] for t in model.T)
+    return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)
+
+# def pref_use_older_inv(model,t,p,r):  ## not Required on Priority >>  Inv age at 3 must be finished before starting to use inv at age 2
+#     return
+# model.A131Constraint = Constraint(model.T,model.P,model.R)
+"""
