@@ -119,8 +119,10 @@ def summarize_results(model,var_data,master,print_tables=False,keep_files = Fals
     cost_report1 = []
     for t in model.T:
         revenue_generated = sum(value(model.order_qty_supplied[o])*model.order_sp[o] for o in model.O if t == model.order_date[o])
-        cost_report1.append({'date':str(horizon[t]),'COGS':value(model.operations_cost[t]),'HoldingCost':value(model.holding_cost[t]),'Revenue':revenue_generated})
+        cost_report1.append({'date':str(horizon[t]),'operating_cost':value(model.operations_cost[t]),'InvHoldingCost':value(model.holding_cost[t]),'Revenue':revenue_generated})
     cost_summary = pandas.DataFrame(cost_report1)
+    cost_summary["profit_projection"] = cost_summary["Revenue"] - (cost_summary["operating_cost"] + cost_summary["InvHoldingCost"])
+    cost_summary= cost_summary.round(3)
     cost_summary.name = 'Summary of Projected Costs'
 
     order_report = []
@@ -141,8 +143,8 @@ def summarize_results(model,var_data,master,print_tables=False,keep_files = Fals
                     sales_fresh_sku,
                     sales_frozen_sku,
                     sales_marination_sku,
-                    cost_summary,
-                    order_fulfillment_summary]
+                    order_fulfillment_summary,
+                    cost_summary]
 
     if print_tables:
         pandas.set_option('display.expand_frame_repr', False)

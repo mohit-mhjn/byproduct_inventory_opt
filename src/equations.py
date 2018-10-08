@@ -29,6 +29,8 @@ from pyomo.environ import *
 import datetime
 
 def create_instance(master,var_data,scenario = 1):
+    AA = 1    #revenue_penalty
+    BB = 1    #inventory_penalty   ## Both are inversely proportional
 
     model = ConcreteModel()
 
@@ -542,7 +544,7 @@ def create_instance(master,var_data,scenario = 1):
     model.holding_cost = Expression(model.T, rule = expression_gen8)        # Calculation total Cost Incurred to hold the imbalance inventory
 
     def expression_gen9(model):
-        return model.selling_gains - (sum(model.operations_cost[t] for t in model.T) + sum(model.holding_cost[t] for t in model.T))
+        return AA*model.selling_gains - (sum(model.operations_cost[t] for t in model.T) + BB*sum(model.holding_cost[t] for t in model.T))
     model.profit_projected = Expression(rule = expression_gen9)            # Profit Equation
 
     ## Temporary Forcing Constraints (Testing Purpose) #########################
@@ -573,9 +575,9 @@ def create_instance(master,var_data,scenario = 1):
 
         if scenario == 1:
 
-            def carcass_availability(model,t,r):
-                return model.z[t,r] <= model.H[t,r]
-            model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)      # Total Number of Birds Cut < Bird Available
+            # def carcass_availability(model,t,r):
+            #     return model.z[t,r] <= model.H[t,r]
+            # model.A0Constraint = Constraint(model.T, model.R, rule = carcass_availability)      # Total Number of Birds Cut < Bird Available
 
             def fullfillment_policy1(model,t,c,p,r,typ,m,o):
                 return model.coef_serv_L[t,c,p,r,typ,m]*model.order_qty[o] == model.order_qty_supplied[o]
@@ -594,9 +596,9 @@ def create_instance(master,var_data,scenario = 1):
 
         elif scenario == 2:
 
-            def produce_fresh_for_p1(model,t,p,r):
-                return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,1,0]
-            model.SC3_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1) # Total Sales > Priority Fulfillment
+            # def produce_fresh_for_p1(model,t,p,r):
+            #     return model.u_fresh[t,p,r] >= model.sales_order[t,1,p,r,1,0]
+            # model.SC3_Constraint1 = Constraint(model.T, model.P, model.R, rule = produce_fresh_for_p1) # Total Sales > Priority Fulfillment
 
             def produce_fresh_m_for_p1(model,t,p,r):
                 return model.um_fresh[t,p,r] >= model.sales_order[t,1,p,r,1,1]
@@ -606,17 +608,17 @@ def create_instance(master,var_data,scenario = 1):
                 return model.u_frozen[t,p,r] >= model.sales_order[t,1,p,r,2,0]
             model.SC3_Constraint3 = Constraint(model.T, model.P, model.R, rule = produce_frozen_for_p1)   # Total Sales > Priority Fulfillment
 
-            def produce_flex_for_p1(model,t,p,rng,typ):   # Both flex and frozen combined
-                return model.u_flex[t,p,rng,typ] >= model.flex_sales_order[t,1,p,rng,typ,0]
-            model.SC3_Constraint4 = Constraint(model.T, model.P, model.RNG, model.P_type, rule = produce_flex_for_p1) # Total sales > Priority fulfillment for flex typ
+            # def produce_flex_for_p1(model,t,p,rng,typ):   # Both flex and frozen combined
+            #     return model.u_flex[t,p,rng,typ] >= model.flex_sales_order[t,1,p,rng,typ,0]
+            # model.SC3_Constraint4 = Constraint(model.T, model.P, model.RNG, model.P_type, rule = produce_flex_for_p1) # Total sales > Priority fulfillment for flex typ
 
             def order_commitment(model,o):
                 return model.order_qty_supplied[o] >= model.order_sla[o]
             model.SC3_Constraint5 = Constraint(model.O, rule = order_commitment)      # For each order >> Quantity supplied > committed Service Level
 
-            def flex_order_commitment(model,fo):
-                return model.flex_order_qty_supplied[fo] >= model.flex_order_sla[fo]
-            model.SC3_Constraint6 = Constraint(model.flex_O, rule = flex_order_commitment)
+            # def flex_order_commitment(model,fo):
+            #     return model.flex_order_qty_supplied[fo] >= model.flex_order_sla[fo]
+            # model.SC3_Constraint6 = Constraint(model.flex_O, rule = flex_order_commitment)
 
             return -1*model.profit_projected
             # return sum(model.z[t,r] for t in model.T for r in model.R) + sum((3-t)*model.x_freezing[t,p,r] for t in model.T for p in model.P for r in model.R)

@@ -86,13 +86,13 @@ def update_coef():
     # Freezing Cost + Capacity
     # Marination Cost + Capacity
     process_master = process_master.groupby(["machine_type"]).agg({'machine_id':'size','capacity':'sum','ops_cost':'mean'})
-    process_dct1 = process_master.to_dict(orient = 'dict')["capacity"]
-    process_dct2 = process_master.to_dict(orient = 'dict')["ops_cost"]
+    process_dct1 = process_master.to_dict(orient = 'dict')["capacity"]   ## >> dct_1 gives capacity
+    process_dct2 = process_master.to_dict(orient = 'dict')["ops_cost"]   ## >> dct_2 gives cost
 
-    cost_dct['freezing_cost'] = process_dct1["Freezer"]
-    cost_dct['marination_cost'] = process_dct1["Marinator"]
-    capacity_dct['freezing'] = process_dct2["Freezer"]
-    capacity_dct['marination'] = process_dct2["Marinator"]
+    cost_dct['freezing_cost'] = process_dct2["Freezer"]
+    cost_dct['marination_cost'] = process_dct2["Marinator"]
+    capacity_dct['freezing'] = process_dct1["Freezer"]
+    capacity_dct['marination'] = process_dct1["Marinator"]
 
     # Inventory Holding Cost
     i_master.drop(labels = ['marination'],axis=1,inplace = True)
