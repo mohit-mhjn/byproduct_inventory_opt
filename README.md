@@ -1,7 +1,10 @@
-- Inventory optimization for a general process which inherently produces byproducts.
+# Inventory Optimization
+
+- Inventory optimization for a process which inherently produces byproducts.
 - Byproducts at times may be expensive to store in perishable product types in food processing, meat packaging, chemical/pharmaceuticals, etc.  
 - In these cases 100% demand satisfaction may not be the most optimal choice of production plan. A trade off needs to be decided between achieving profits by 100% demand satisfaction and at the same time incurring storage costs. 
 - Optimization problems like this are also known as Imbalance Parts optimization
+- The case used in this project is specific to meat packaging.
 
 
 **Directions**
